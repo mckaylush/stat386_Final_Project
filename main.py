@@ -154,19 +154,21 @@ else:
 
 
 # ---------------------- DATA PREVIEW ----------------------
-st.subheader("Data Preview")
+if mode == "Team":
+    st.subheader("Data Preview")
 
-preview_cols = [
-    "season_label", "opposingTeam", "gameDate",
-    "xG%", "xGA",
-    "goalsFor", "goalsAgainst",
-    "win",
-    "days_rest", "back_to_back", "Game Number"
-]
+    preview_cols = [
+        "season_label", "opposingTeam", "gameDate",
+        "xG%", "xGA",
+        "goalsFor", "goalsAgainst",
+        "win",
+        "days_rest", "back_to_back", "Game Number"
+    ]
 
-preview_cols = [c for c in preview_cols if c in team_df.columns]
+    preview_cols = [c for c in preview_cols if c in team_df.columns]
 
-st.dataframe(team_df[preview_cols].head(10))
+    st.dataframe(team_df[preview_cols].head(10))
+
 
 # ---------------------- MAIN CHART ----------------------
 if mode == "Team":
