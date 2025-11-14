@@ -47,9 +47,6 @@ def clean_team_abbrev(abbrev):
     abbrev = abbrev.strip()
     return mapping.get(abbrev, abbrev.replace(".", "").upper())
 
-
-
-
 # ---------------------- LOAD + PROCESS DATA ----------------------
 @st.cache_data
 def load_and_process_data(path):
@@ -84,13 +81,11 @@ def load_and_process_data(path):
 
     return df
 
-
 # ---------------------- LOAD DATA ----------------------
 DATA_PATH = "all_teams.csv"
 df = load_and_process_data(DATA_PATH)
 
 # ---------------------- SIDEBAR FILTERS ----------------------
-
 
 st.sidebar.header("Filters")
 
@@ -157,51 +152,64 @@ preview_cols = [
 
 preview_cols = [c for c in preview_cols if c in team_df.columns]
 
-st.dataframe(team_df[preview_cols].head(20))
+st.dataframe(team_df[preview_cols].head(10))
 
 # ---------------------- MAIN CHART ----------------------
 
-fig, ax = plt.subplots(figsize=(13, 6))
+fig, ax = plt.subplots(figsize=(14, 7))
 
 x = team_df["Game Number"]
-wins = team_df["win"]
 
 # Main metric plotting
 if metric_mode == "Raw xGF/xGA":
     y1 = team_df["xGF_roll"] if rolling_window > 1 else team_df["xGF"]
     y2 = team_df["xGA_roll"] if rolling_window > 1 else team_df["xGA"]
-    ax.plot(x, y1, label="xGF", linewidth=2)
-    ax.plot(x, y2, label="xGA", linewidth=2)
+    ax.plot(x, y1, label="xGF", linewidth=2.5)
+    ax.plot(x, y2, label="xGA", linewidth=2.5)
     ylabel = "Expected Goals"
 
 elif metric_mode == "Expected Goals Percentage (xG%)":
     y = team_df["xG%_roll"] if rolling_window > 1 else team_df["xG%"]
-    ax.plot(x, y, label="xG%", linewidth=2)
+    ax.plot(x, y, label="xG%", linewidth=2.5)
     ylabel = "xG%"
 
 else:  # Actual vs Expected
     y1 = team_df["GF_roll"] if rolling_window > 1 else team_df["goalsFor"]
     y2 = team_df["GA_roll"] if rolling_window > 1 else team_df["goalsAgainst"]
     y3 = team_df["xGF_roll"] if rolling_window > 1 else team_df["xGF"]
-    ax.plot(x, y1, label="Goals For", linewidth=2)
-    ax.plot(x, y2, label="Goals Against", linewidth=2)
-    ax.plot(x, y3, label="xGF", linewidth=2, linestyle="--")
+    ax.plot(x, y1, label="Goals For", linewidth=2.5)
+    ax.plot(x, y2, label="Goals Against", linewidth=2.5)
+    ax.plot(x, y3, label="xGF", linewidth=2.0, linestyle="--")
     ylabel = "Goals"
+
+
+# ---------------------- HIGHLIGHT 2ND GAME OF BACK-TO-BACK ----------------------
+# These are games where days_rest == 1
+b2b_game2 = team_df[team_df["days_rest"] == 1]["Game Number"].tolist()
+
+for gnum in b2b_game2:
+    ax.axvspan(gnum - 0.5, gnum + 0.5, color="yellow", alpha=0.2)
 
 
 # ---------------------- WIN/LOSS MARKERS ----------------------
 for idx, row in team_df.iterrows():
     color = "green" if row["win"] else "red"
-    ax.scatter(row["Game Number"], 
-               row["GF_roll"] if (metric_mode == "Actual vs Expected" and rolling_window > 1) else row["goalsFor"],
-               color=color, s=40, alpha=0.7)
+    y_val = (
+        row["GF_roll"] if (metric_mode == "Actual vs Expected" and rolling_window > 1)
+        else row["goalsFor"]
+    )
+    ax.scatter(row["Game Number"], y_val, color=color, s=50, alpha=0.8, edgecolor="black")
 
-ax.set_xlabel("Game Number")
-ax.set_ylabel(ylabel)
-ax.grid(True)
-ax.legend()
+
+# ---------------------- STYLE IMPROVEMENTS ----------------------
+ax.set_xlabel("Game Number", fontsize=13)
+ax.set_ylabel(ylabel, fontsize=13)
+ax.grid(True, alpha=0.3)
+ax.legend(fontsize=12)
+ax.tick_params(axis="both", labelsize=11)
 
 st.pyplot(fig)
+
 
 # ---------------------- BACK-TO-BACK SUMMARY ----------------------
 
