@@ -237,18 +237,19 @@ else:
         ax.axvspan(gnum - 0.5, gnum + 0.5, color="#e8e8e8", alpha=0.6)
 
 # ---------------------- WIN/LOSS MARKERS ----------------------
-    for idx, row in team_df.iterrows():
-        color = "green" if row["win"] else "red"
-        game_num = row["Game Number"]
-
-        y_val = (
-            row["GF_roll"] if (metric_mode == "Actual vs Expected" and rolling_window > 1)
-            else row["goalsFor"]
-        )
-        ax.scatter(
+    # ---------------------- WIN/LOSS MARKERS ----------------------
+    if metric_mode != "Expected Goals Percentage (xG%)":
+        for idx, row in team_df.iterrows():
+            color = "green" if row["win"] else "red"
+            y_val = (
+                row["GF_roll"] if (metric_mode == "Actual vs Expected" and rolling_window > 1)
+                else row["goalsFor"]
+            )
+            ax.scatter(
             row["Game Number"], y_val,
-            color=color, s=50, alpha=0.8, edgecolor="black"
-        )
+                color=color, s=50, alpha=0.8, edgecolor="black"
+            )
+
         # ---------------------- ADD GOALS SCORED LABEL ----------------------
         
         if metric_mode == "Expected Goals Percentage (xG%)":
