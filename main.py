@@ -156,59 +156,62 @@ st.dataframe(team_df[preview_cols].head(10))
 
 # ---------------------- MAIN CHART ----------------------
 
-fig, ax = plt.subplots(figsize=(14, 7))
+if selected_season == "All Seasons (2016–Present)":
+    st.info("Select an individual season to view the game-by-game chart. \
+            Chart hidden to avoid overcrowding (800+ games).")
 
-x = team_df["Game Number"]
+else:
+    fig, ax = plt.subplots(figsize=(14, 7))
 
-# Main metric plotting
-if metric_mode == "Raw xGF/xGA":
-    y1 = team_df["xGF_roll"] if rolling_window > 1 else team_df["xGF"]
-    y2 = team_df["xGA_roll"] if rolling_window > 1 else team_df["xGA"]
-    ax.plot(x, y1, label="xGF", linewidth=2.5)
-    ax.plot(x, y2, label="xGA", linewidth=2.5)
-    ylabel = "Expected Goals"
+    x = team_df["Game Number"]
 
-elif metric_mode == "Expected Goals Percentage (xG%)":
-    y = team_df["xG%_roll"] if rolling_window > 1 else team_df["xG%"]
-    ax.plot(x, y, label="xG%", linewidth=2.5)
-    ylabel = "xG%"
+    # Main metric plotting
+    if metric_mode == "Raw xGF/xGA":
+        y1 = team_df["xGF_roll"] if rolling_window > 1 else team_df["xGF"]
+        y2 = team_df["xGA_roll"] if rolling_window > 1 else team_df["xGA"]
+        ax.plot(x, y1, label="xGF", linewidth=2.5)
+        ax.plot(x, y2, label="xGA", linewidth=2.5)
+        ylabel = "Expected Goals"
 
-else:  # Actual vs Expected
-    y1 = team_df["GF_roll"] if rolling_window > 1 else team_df["goalsFor"]
-    y2 = team_df["GA_roll"] if rolling_window > 1 else team_df["goalsAgainst"]
-    y3 = team_df["xGF_roll"] if rolling_window > 1 else team_df["xGF"]
-    ax.plot(x, y1, label="Goals For", linewidth=2.5)
-    ax.plot(x, y2, label="Goals Against", linewidth=2.5)
-    ax.plot(x, y3, label="xGF", linewidth=2.0, linestyle="--")
-    ylabel = "Goals"
+    elif metric_mode == "Expected Goals Percentage (xG%)":
+        y = team_df["xG%_roll"] if rolling_window > 1 else team_df["xG%"]
+        ax.plot(x, y, label="xG%", linewidth=2.5)
+        ylabel = "xG%"
 
+    else:  # Actual vs Expected
+        y1 = team_df["GF_roll"] if rolling_window > 1 else team_df["goalsFor"]
+        y2 = team_df["GA_roll"] if rolling_window > 1 else team_df["goalsAgainst"]
+        y3 = team_df["xGF_roll"] if rolling_window > 1 else team_df["xGF"]
+        ax.plot(x, y1, label="Goals For", linewidth=2.5)
+        ax.plot(x, y2, label="Goals Against", linewidth=2.5)
+        ax.plot(x, y3, label="xGF", linewidth=2.0, linestyle="--")
+        ylabel = "Goals"
 
-# ---------------------- HIGHLIGHT 2ND GAME OF BACK-TO-BACK ----------------------
-# These are games where days_rest == 1
-b2b_game2 = team_df[team_df["days_rest"] == 1]["Game Number"].tolist()
+    # Highlight 2nd game of back-to-back (yellow bar)
+    b2b_game2 = team_df[team_df["days_rest"] == 1]["Game Number"].tolist()
+    for gnum in b2b_game2:
+        ax.axvspan(gnum - 0.5, gnum + 0.5, color="yellow", alpha=0.2)
 
-for gnum in b2b_game2:
-    ax.axvspan(gnum - 0.5, gnum + 0.5, color="yellow", alpha=0.2)
+    # Win/loss markers
+    for idx, row in team_df.iterrows():
+        color = "green" if row["win"] else "red"
+        y_val = (
+            row["GF_roll"] if (metric_mode == "Actual vs Expected" and rolling_window > 1)
+            else row["goalsFor"]
+        )
+        ax.scatter(
+            row["Game Number"], y_val,
+            color=color, s=50, alpha=0.8, edgecolor="black"
+        )
 
+    # Style improvements
+    ax.set_xlabel("Game Number", fontsize=13)
+    ax.set_ylabel(ylabel, fontsize=13)
+    ax.grid(True, alpha=0.3)
+    ax.legend(fontsize=12)
+    ax.tick_params(axis="both", labelsize=11)
 
-# ---------------------- WIN/LOSS MARKERS ----------------------
-for idx, row in team_df.iterrows():
-    color = "green" if row["win"] else "red"
-    y_val = (
-        row["GF_roll"] if (metric_mode == "Actual vs Expected" and rolling_window > 1)
-        else row["goalsFor"]
-    )
-    ax.scatter(row["Game Number"], y_val, color=color, s=50, alpha=0.8, edgecolor="black")
-
-
-# ---------------------- STYLE IMPROVEMENTS ----------------------
-ax.set_xlabel("Game Number", fontsize=13)
-ax.set_ylabel(ylabel, fontsize=13)
-ax.grid(True, alpha=0.3)
-ax.legend(fontsize=12)
-ax.tick_params(axis="both", labelsize=11)
-
-st.pyplot(fig)
+    st.pyplot(fig)
 
 
 # ---------------------- BACK-TO-BACK SUMMARY ----------------------
