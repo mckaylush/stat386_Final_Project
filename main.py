@@ -223,13 +223,34 @@ else:
 
 
     else:  # Actual vs Expected
-        y1 = team_df["GF_roll"] if rolling_window > 1 else team_df["goalsFor"]
-        y2 = team_df["GA_roll"] if rolling_window > 1 else team_df["goalsAgainst"]
-        y3 = team_df["xGF_roll"] if rolling_window > 1 else team_df["xGF"]
-        ax.plot(x, y1, label="Goals For", linewidth=2.5)
-        ax.plot(x, y2, label="Goals Against", linewidth=2.5)
-        ax.plot(x, y3, label="xGF", linewidth=2.0, linestyle="--")
+        smoothing = max(rolling_window, 3)
+
+    # Smoothed values
+        gf = team_df["goalsFor"].rolling(smoothing).mean()
+        ga = team_df["goalsAgainst"].rolling(smoothing).mean()
+        xgf = team_df["xGF"].rolling(smoothing).mean()
+
+    # ---- PLOT GOALS FOR / AGAINST ----
+        ax.plot(x, gf, label="Goals For", linewidth=2, color="#1f77b4")
+        ax.plot(x, ga, label="Goals Against", linewidth=2, color="#ff7f0e")
+
+    # ---- PLOT xGF AS A SHADED REGION ----
+        ax.fill_between(
+            x, xgf - 0.25, xgf + 0.25,
+            color="#2ca02c", alpha=0.25, label="xGF (smoothed band)"
+     )
+        ax.plot(x, xgf, color="#2ca02c", linewidth=1.6, linestyle="--")
+
         ylabel = "Goals"
+
+    # ---- WIN/LOSS MARKERS ON TOP (clean) ----
+    for idx, row in team_df.iterrows():
+        color = "green" if row["win"] else "red"
+        ax.scatter(
+            row["Game Number"], row["goalsFor"],
+            color=color, s=45, alpha=0.9, edgecolor="black", zorder=10
+        )
+
 
 # ---------------------- HIGHLIGHT 2ND BACK TO BACK GAME----------------------
     b2b_game2 = team_df[team_df["days_rest"] == 1]["Game Number"].tolist()
@@ -237,7 +258,6 @@ else:
         ax.axvspan(gnum - 0.5, gnum + 0.5, color="#e8e8e8", alpha=0.6)
 
 # ---------------------- WIN/LOSS MARKERS ----------------------
-    # ---------------------- WIN/LOSS MARKERS ----------------------
     if metric_mode != "Expected Goals Percentage (xG%)":
         for idx, row in team_df.iterrows():
             color = "green" if row["win"] else "red"
