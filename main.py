@@ -279,20 +279,18 @@ else:
     st.dataframe(avg_df)
 
     # Visualization
-    st.subheader("Visualization")
+st.subheader("Visualization")
 
-    fig2, ax2 = plt.subplots(figsize=(10, 5))
-    avg_df[["xGF", "xGA"]].plot(kind="bar", ax=ax2)
-    ax2.set_title("Expected Goals Comparison: B2B Game 1 vs Game 2")
-    ax2.set_ylabel("Expected Goals")
-    ax2.grid(True)
+# Combine all metrics into one chart
+combined = avg_df[["xGF", "xGA", "Goals For", "Goals Against"]]
 
-    st.pyplot(fig2)
+fig_combined, ax_combined = plt.subplots(figsize=(12, 6))
 
-    fig3, ax3 = plt.subplots(figsize=(10, 5))
-    avg_df[["Goals For", "Goals Against"]].plot(kind="bar", ax=ax3)
-    ax3.set_title("Actual Goals Comparison: B2B Game 1 vs Game 2")
-    ax3.set_ylabel("Goals")
-    ax3.grid(True)
+combined.plot(kind="bar", ax=ax_combined)
 
-    st.pyplot(fig3)
+ax_combined.set_title("B2B Game 1 vs Game 2 — Expected & Actual Goals Comparison")
+ax_combined.set_ylabel("Goals / Expected Goals")
+ax_combined.grid(True, alpha=0.3)
+ax_combined.legend(title="Metric")
+
+st.pyplot(fig_combined)
