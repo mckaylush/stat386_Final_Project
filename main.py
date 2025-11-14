@@ -2,47 +2,20 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-import plotly.graph_objects as go
 
 st.set_page_config(page_title="NHL Team Statistics Since 2016", layout="wide")
 
-# ---------------------- TEAM COLORS ----------------------
-TEAM_COLORS = {
-    "ANA": "#F47A38",
-    "ARI": "#8C2633",
-    "BOS": "#FFB81C",
-    "BUF": "#003087",
-    "CAR": "#CC0000",
-    "CBJ": "#002654",
-    "CGY": "#C8102E",
-    "CHI": "#CF0A2C",
-    "COL": "#6F263D",
-    "DAL": "#006847",
-    "DET": "#CE1126",
-    "EDM": "#FF4C00",
-    "FLA": "#C8102E",
-    "LAK": "#111111",
-    "MIN": "#154734",
-    "MTL": "#AF1E2D",
-    "NJD": "#CE1126",
-    "NSH": "#FFB81C",
-    "NYI": "#F47D30",
-    "NYR": "#0038A8",
-    "OTT": "#C52032",
-    "PHI": "#F74902",
-    "PIT": "#FFB81C",
-    "SEA": "#001628",
-    "SJS": "#006D75",
-    "STL": "#002F87",
-    "TBL": "#002868",
-    "TOR": "#00205B",
-    "VAN": "#00205B",
-    "VGK": "#B4975A",
-    "WPG": "#041E42",
-    "WSH": "#C8102E",
-}
-
 # ---------------------- FUNCTIONS ----------------------
+
+def get_team_logo_url(team_abbrev):
+    """
+    Get NHL team logo from the official NHL assets CDN.
+    Uses pattern: https://assets.nhle.com/logos/nhl/svg/[TEAM]_light.svg
+    """
+    clean = team_abbrev.replace(".", "").upper()
+    return f"https://assets.nhle.com/logos/nhl/svg/{clean}_light.svg"
+
+
 
 def clean_team_abbrev(abbrev):
     mapping = {
@@ -74,7 +47,6 @@ def clean_team_abbrev(abbrev):
     abbrev = abbrev.strip()
     return mapping.get(abbrev, abbrev.replace(".", "").upper())
 
-
 # ---------------------- LOAD + PROCESS DATA ----------------------
 @st.cache_data
 def load_and_process_data(path):
@@ -82,7 +54,8 @@ def load_and_process_data(path):
     df["playerTeam"] = df["playerTeam"].apply(clean_team_abbrev)
     df["opposingTeam"] = df["opposingTeam"].apply(clean_team_abbrev)
 
-    # Team-level only
+
+    # Team-level 5v5 only
     df = df[(df["position"] == "Team Level") & (df["situation"] == "all")].copy()
 
     # Dates
@@ -103,11 +76,10 @@ def load_and_process_data(path):
     # Win/loss flag
     df["win"] = df["goalsFor"] > df["goalsAgainst"]
 
-    # Season label (e.g., "2016-2017")
+    # Season label (e.g., 2016–2017)
     df["season_label"] = df["season"].astype(str)
 
     return df
-
 
 # ---------------------- LOAD DATA ----------------------
 DATA_PATH = "all_teams.csv"
@@ -120,6 +92,7 @@ st.sidebar.header("Filters")
 team_list = sorted(df["playerTeam"].unique())
 selected_team = st.sidebar.selectbox("Select Team", team_list)
 
+# Season options
 season_options = ["All Seasons (2016–Present)"] + sorted(df["season_label"].unique())
 selected_season = st.sidebar.selectbox("Select Season", season_options)
 
@@ -146,55 +119,25 @@ if selected_season != "All Seasons (2016–Present)":
 
 team_df = team_df.reset_index(drop=True)
 team_df["Game Number"] = team_df.index + 1
-team_df["gameDate"] = team_df["gameDate"].dt.date  # nice for tooltips
+team_df["gameDate"] = team_df["gameDate"].dt.date
 
-# Rolling averages (kept in case you want them elsewhere)
+# Rolling averages
 if rolling_window > 1:
-    team_df["xGF_roll"] = team_df["xGF"].rolling(rolling_window).mean()
-    team_df["xGA_roll"] = team_df["xGA"].rolling(rolling_window).mean()
-    team_df["xG%_roll"] = team_df["xG%"].rolling(rolling_window).mean()
-    team_df["GF_roll"] = team_df["goalsFor"].rolling(rolling_window).mean()
-    team_df["GA_roll"] = team_df["goalsAgainst"].rolling(rolling_window).mean()
+    team_df["xGF_roll"]  = team_df["xGF"].rolling(rolling_window).mean()
+    team_df["xGA_roll"]  = team_df["xGA"].rolling(rolling_window).mean()
+    team_df["xG%_roll"]  = team_df["xG%"].rolling(rolling_window).mean()
+    team_df["GF_roll"]   = team_df["goalsFor"].rolling(rolling_window).mean()
+    team_df["GA_roll"]   = team_df["goalsAgainst"].rolling(rolling_window).mean()
 
-# Flag 2nd game of B2B
-team_df["is_b2b_game2"] = team_df["days_rest"] == 1
+# ---------------------- HEADER (WITH LOGO) ----------------------
 
-# Labels for tooltips
-team_df["win_label"] = np.where(team_df["win"], "Yes", "No")
-team_df["b2b_label"] = np.where(team_df["is_b2b_game2"], "Yes", "No")
+logo_url = get_team_logo_url(selected_team)
 
-# Customdata for Plotly hover
-customdata = np.stack([
-    team_df["gameDate"].astype(str),
-    team_df["opposingTeam"],
-    team_df["home_or_away"],
-    team_df["goalsFor"],
-    team_df["goalsAgainst"],
-    team_df["xGF"],
-    team_df["xGA"],
-    team_df["xG%"],
-    team_df["win_label"],
-    team_df["b2b_label"]
-], axis=-1)
-
-hovertemplate = (
-    "Game %{x}<br>"
-    "Date: %{customdata[0]}<br>"
-    "Opponent: %{customdata[1]}<br>"
-    "Home/Away: %{customdata[2]}<br>"
-    "Goals For: %{customdata[3]}<br>"
-    "Goals Against: %{customdata[4]}<br>"
-    "xGF: %{customdata[5]:.2f}<br>"
-    "xGA: %{customdata[6]:.2f}<br>"
-    "xG%: %{customdata[7]:.1f}%<br>"
-    "Win: %{customdata[8]}<br>"
-    "2nd Game of B2B: %{customdata[9]}<extra></extra>"
-)
-
-team_color = TEAM_COLORS.get(selected_team, "#1f77b4")
-
-# ---------------------- HEADER ----------------------
-st.header(f"{selected_team} — {metric_mode}")
+col1, col2 = st.columns([1, 10])
+with col1:
+    st.image(logo_url, width=80)
+with col2:
+    st.header(f"{selected_team} — {metric_mode}")
 
 # ---------------------- DATA PREVIEW ----------------------
 st.subheader("Data Preview")
@@ -206,159 +149,146 @@ preview_cols = [
     "win",
     "days_rest", "back_to_back", "Game Number"
 ]
+
 preview_cols = [c for c in preview_cols if c in team_df.columns]
 
 st.dataframe(team_df[preview_cols].head(10))
 
-# ---------------------- MAIN CHART (PLOTLY) ----------------------
+# ---------------------- MAIN CHART ----------------------
 
 if selected_season == "All Seasons (2016–Present)":
-    st.info(
-        "Select an individual season to view the game-by-game chart. "
-        "Chart hidden to avoid overcrowding (800+ games)."
-    )
+    st.info("Select an individual season to view the game-by-game chart. \
+            Chart hidden to avoid overcrowding (800+ games).")
+
 else:
+    fig, ax = plt.subplots(figsize=(14, 7))
+
     x = team_df["Game Number"]
-    fig = go.Figure()
 
-    # B2B shading (2nd game)
-    for gnum in team_df.loc[team_df["is_b2b_game2"], "Game Number"]:
-        fig.add_vrect(
-            x0=gnum - 0.5, x1=gnum + 0.5,
-            fillcolor="lightgray", opacity=0.3,
-            line_width=0, layer="below"
-        )
-
-    # ------------- RAW xGF/xGA -------------
+# ---------------------- MAIN METRIC PLOTTING ----------------------
     if metric_mode == "Raw xGF/xGA":
+
+    # Force smoothing of at least 3 games for visual clarity
         smoothing = max(rolling_window, 3)
+
         y1 = team_df["xGF"].rolling(smoothing).mean()
         y2 = team_df["xGA"].rolling(smoothing).mean()
+        diff = (team_df["xGF"] - team_df["xGA"]).rolling(smoothing).mean()
 
-        fig.add_trace(go.Scatter(
-            x=x, y=y1,
-            mode="lines",
-            name="xGF (smoothed)",
-            line=dict(color=team_color, width=3),
-            customdata=customdata,
-            hovertemplate=hovertemplate
-        ))
+    # Plot main lines
+        ax.plot(x, y1, label="xGF", linewidth=2.2, color="#1f77b4")
+        ax.plot(x, y2, label="xGA", linewidth=2.2, color="#ff7f0e")
 
-        fig.add_trace(go.Scatter(
-            x=x, y=y2,
-            mode="lines",
-            name="xGA (smoothed)",
-            line=dict(color="#ff7f0e", width=3),
-            customdata=customdata,
-            hovertemplate=hovertemplate
-        ))
+    # Update y-label
+        ylabel = "Expected Goals (Smoothed)"
 
-        fig.update_yaxes(title_text="Expected Goals (Smoothed)")
-
-    # ------------- xG% + GOALS (2nd AXIS) -------------
     elif metric_mode == "Expected Goals Percentage (xG%)":
+
+    # ----- MAIN AXIS (xG%) -----
         y = team_df["xG%_roll"] if rolling_window > 1 else team_df["xG%"]
+        ax.plot(x, y, label="xG%", linewidth=2.5, color="#1f77b4")
+        ylabel = "xG%"
+
+    # Add season average line
         avg_xg_pct = y.mean()
+        ax.axhline(avg_xg_pct, color="#1f77b4", linestyle="--", linewidth=1.5, alpha=0.6)
+        ax.text(
+            x.iloc[-1] + 0.3, avg_xg_pct, 
+            f"Avg {avg_xg_pct:.1f}%", 
+            color="#1f77b4", fontsize=11, va="center"
+     )
 
-        # xG% line
-        fig.add_trace(go.Scatter(
-            x=x, y=y,
-            mode="lines",
-            name="xG%",
-            line=dict(color=team_color, width=3),
-            customdata=customdata,
-            hovertemplate=hovertemplate,
-            yaxis="y1",
-        ))
+    # ----- SECONDARY AXIS (Goals) -----
+        ax2 = ax.twinx()
 
-        # Average line
-        fig.add_hline(
-            y=avg_xg_pct,
-            line=dict(color=team_color, width=2, dash="dash"),
-            annotation_text=f"Avg {avg_xg_pct:.1f}%",
-            annotation_position="top right",
-            annotation_font=dict(color=team_color)
+        goals = team_df["goalsFor"]
+        colors = ["green" if w else "red" for w in team_df["win"]]
+
+        ax2.scatter(
+            x, goals,
+            color=colors, s=40, alpha=0.9, edgecolor="black",
+            label="Goals"
         )
 
-        # Goals (secondary axis)
-        goals = team_df["goalsFor"]
-        colors = np.where(team_df["win"], "green", "red")
+        ax2.set_ylabel("Goals For", fontsize=12)
+        ax2.set_ylim(0, max(goals) + 1)
 
-        fig.add_trace(go.Scatter(
-            x=x, y=goals,
-            mode="markers+text",
-            name="Goals For",
-            marker=dict(color=colors, size=9, line=dict(color="black", width=1)),
-            text=[str(g) for g in goals],
-            textposition="top center",
-            customdata=customdata,
-            hovertemplate=hovertemplate,
-            yaxis="y2",
-        ))
+    # Add value labels ABOVE each goal marker
+        for game_num, g, c in zip(x, goals, colors):
+            ax2.text(
+                game_num, g + 0.2,
+                str(g), fontsize=9,
+                ha="center", va="bottom", color=c
+            )
 
-        fig.update_yaxes(title_text="xG%", range=[0, max(80, y.max() + 5)], secondary_y=False)
-        fig.update_yaxes(title_text="Goals For", range=[0, max(goals.max() + 1, 4)],
-                         secondary_y=True, overlaying="y", side="right")
 
-    # ------------- ACTUAL vs EXPECTED GOALS -------------
-    else:  # "Actual vs Expected Goals"
+    else:  # Actual vs Expected
         smoothing = max(rolling_window, 3)
+
+    # Smoothed values
         gf = team_df["goalsFor"].rolling(smoothing).mean()
         ga = team_df["goalsAgainst"].rolling(smoothing).mean()
         xgf = team_df["xGF"].rolling(smoothing).mean()
 
-        # Goals For
-        fig.add_trace(go.Scatter(
-            x=x, y=gf,
-            mode="lines",
-            name="Goals For (smoothed)",
-            line=dict(color=team_color, width=3),
-            customdata=customdata,
-            hovertemplate=hovertemplate
-        ))
+    # ---- PLOT GOALS FOR / AGAINST ----
+        ax.plot(x, gf, label="Goals For", linewidth=2, color="#1f77b4")
+        ax.plot(x, ga, label="Goals Against", linewidth=2, color="#ff7f0e")
 
-        # Goals Against
-        fig.add_trace(go.Scatter(
-            x=x, y=ga,
-            mode="lines",
-            name="Goals Against (smoothed)",
-            line=dict(color="#ff7f0e", width=3),
-            customdata=customdata,
-            hovertemplate=hovertemplate
-        ))
+    # ---- PLOT xGF AS A SHADED REGION ----
+        ax.fill_between(
+            x, xgf - 0.25, xgf + 0.25,
+            color="#2ca02c", alpha=0.25, label="xGF (smoothed band)"
+     )
+        ax.plot(x, xgf, color="#2ca02c", linewidth=1.6, linestyle="--")
 
-        # xGF dashed line
-        fig.add_trace(go.Scatter(
-            x=x, y=xgf,
-            mode="lines",
-            name="xGF (smoothed)",
-            line=dict(color="#2ca02c", width=2, dash="dash"),
-            customdata=customdata,
-            hovertemplate=hovertemplate
-        ))
+        ylabel = "Goals"
 
-        # Win/Loss markers on top
-        colors = np.where(team_df["win"], "green", "red")
-        fig.add_trace(go.Scatter(
-            x=x, y=team_df["goalsFor"],
-            mode="markers",
-            name="Goals For (game)",
-            marker=dict(color=colors, size=8, line=dict(color="black", width=1)),
-            customdata=customdata,
-            hovertemplate=hovertemplate
-        ))
+    # ---- WIN/LOSS MARKERS ON TOP (clean) ----
+    for idx, row in team_df.iterrows():
+        color = "green" if row["win"] else "red"
+        ax.scatter(
+            row["Game Number"], row["goalsFor"],
+            color=color, s=45, alpha=0.9, edgecolor="black", zorder=10
+        )
 
-        fig.update_yaxes(title_text="Goals")
 
-    # ------------- COMMON LAYOUT -------------
-    fig.update_layout(
-        margin=dict(l=40, r=40, t=40, b=40),
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="center", x=0.5),
-        xaxis_title="Game Number",
-        template="plotly_white",
-    )
+# ---------------------- HIGHLIGHT 2ND BACK TO BACK GAME----------------------
+    b2b_game2 = team_df[team_df["days_rest"] == 1]["Game Number"].tolist()
+    for gnum in b2b_game2:
+        ax.axvspan(gnum - 0.5, gnum + 0.5, color="#e8e8e8", alpha=0.6)
 
-    st.plotly_chart(fig, use_container_width=True)
+# ---------------------- WIN/LOSS MARKERS ----------------------
+    if metric_mode != "Expected Goals Percentage (xG%)":
+        for idx, row in team_df.iterrows():
+            color = "green" if row["win"] else "red"
+            y_val = (
+                row["GF_roll"] if (metric_mode == "Actual vs Expected" and rolling_window > 1)
+                else row["goalsFor"]
+            )
+            ax.scatter(
+            row["Game Number"], y_val,
+                color=color, s=50, alpha=0.8, edgecolor="black"
+            )
+
+        # ---------------------- ADD GOALS SCORED LABEL ----------------------
+        
+        if metric_mode == "Expected Goals Percentage (xG%)":
+            # label actual goals on the xG% chart
+            ax.text(
+                game_num, y_val + 0.3,
+                str(row["goalsFor"]),
+                fontsize=9, ha="center", va="bottom"
+            )
+
+
+# ---------------------- STYLE IMPROVEMENTS ----------------------
+    ax.set_xlabel("Game Number", fontsize=13)
+    ax.set_ylabel(ylabel, fontsize=13)
+    ax.grid(True, alpha=0.3)
+    ax.legend(fontsize=12)
+    ax.tick_params(axis="both", labelsize=11)
+
+    st.pyplot(fig)
 
 
 # ---------------------- BACK-TO-BACK SUMMARY ----------------------
@@ -378,12 +308,12 @@ else:
 
 # ---------------------- FIRST GAME vs SECOND GAME OF B2B ----------------------
 
-st.subheader("B2B Game 1 vs Game 2")
-
+# Identify B2B pairs
 team_df["next_days_rest"] = team_df["days_rest"].shift(-1)
 
 b2b_pairs = []
 for i in range(len(team_df) - 1):
+    # A back-to-back pair is when the NEXT game has 1 day rest
     if team_df.loc[i + 1, "days_rest"] == 1:
         game1 = team_df.loc[i]
         game2 = team_df.loc[i + 1]
@@ -392,6 +322,7 @@ for i in range(len(team_df) - 1):
 if len(b2b_pairs) == 0:
     st.warning("No full back-to-back sets found for this team and season.")
 else:
+    # Build a DataFrame comparing the two games
     data = {
         "Game Type": [],
         "xGF": [],
@@ -402,6 +333,7 @@ else:
     }
 
     for game1, game2 in b2b_pairs:
+        # First game
         data["Game Type"].append("B2B Game 1")
         data["xGF"].append(game1["xGF"])
         data["xGA"].append(game1["xGA"])
@@ -409,6 +341,7 @@ else:
         data["Goals For"].append(game1["goalsFor"])
         data["Goals Against"].append(game1["goalsAgainst"])
 
+        # Second game
         data["Game Type"].append("B2B Game 2")
         data["xGF"].append(game2["xGF"])
         data["xGA"].append(game2["xGA"])
@@ -418,19 +351,23 @@ else:
 
     compare_df = pd.DataFrame(data)
 
+    st.subheader("B2B Game 1 vs Game 2 Averages")
     avg_df = compare_df.groupby("Game Type").mean()
     st.dataframe(avg_df)
 
-    # Matplotlib bar chart (per your choice)
-    st.subheader("Visualization")
+    # Visualization
+st.subheader("Visualization")
 
-    combined = avg_df[["xGF", "xGA", "Goals For", "Goals Against"]]
-    fig_combined, ax_combined = plt.subplots(figsize=(12, 6))
-    combined.plot(kind="bar", ax=ax_combined)
+# Combine all metrics into one chart
+combined = avg_df[["xGF", "xGA", "Goals For", "Goals Against"]]
 
-    ax_combined.set_title("B2B Game 1 vs Game 2 — Expected & Actual Goals Comparison")
-    ax_combined.set_ylabel("Goals / Expected Goals")
-    ax_combined.grid(True, alpha=0.3)
-    ax_combined.legend(title="Metric")
+fig_combined, ax_combined = plt.subplots(figsize=(12, 6))
 
-    st.pyplot(fig_combined)
+combined.plot(kind="bar", ax=ax_combined)
+
+ax_combined.set_title("B2B Game 1 vs Game 2 — Expected & Actual Goals Comparison")
+ax_combined.set_ylabel("Goals / Expected Goals")
+ax_combined.grid(True, alpha=0.3)
+ax_combined.legend(title="Metric")
+
+st.pyplot(fig_combined)
