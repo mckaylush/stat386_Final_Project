@@ -90,7 +90,13 @@ df = load_and_process_data(DATA_PATH)
 st.sidebar.header("Filters")
 
 team_list = sorted(df["playerTeam"].unique())
-selected_team = st.sidebar.selectbox("Select Team", team_list)
+mode = st.sidebar.radio("Mode", ["Team", "League-wide"])
+
+if mode == "Team":
+    team_list = sorted(df["playerTeam"].unique())
+    selected_team = st.sidebar.selectbox("Select Team", team_list)
+else:
+    selected_team = None  # no team selected in league mode
 
 # Season options
 season_options = ["All Seasons (2016–Present)"] + sorted(df["season_label"].unique())
@@ -107,7 +113,10 @@ home_away = st.sidebar.radio("Home/Away Split", ["All Games", "Home Only", "Away
 
 # ---------------------- FILTER TEAM DATA ----------------------
 
-team_df = df[df["playerTeam"] == selected_team].copy()
+if mode == "Team":
+    team_df = df[df["playerTeam"] == selected_team].copy()
+else:
+    team_df = df.copy()   # entire league
 
 if home_away == "Home Only":
     team_df = team_df[team_df["home_or_away"] == "HOME"]
@@ -155,140 +164,140 @@ preview_cols = [c for c in preview_cols if c in team_df.columns]
 st.dataframe(team_df[preview_cols].head(10))
 
 # ---------------------- MAIN CHART ----------------------
+if mode == "Team":
+    if selected_season == "All Seasons (2016–Present)":
+        st.info("Select an individual season to view the game-by-game chart. \
+                Chart hidden to avoid overcrowding (800+ games).")
 
-if selected_season == "All Seasons (2016–Present)":
-    st.info("Select an individual season to view the game-by-game chart. \
-            Chart hidden to avoid overcrowding (800+ games).")
+    else:
+        fig, ax = plt.subplots(figsize=(14, 7))
 
-else:
-    fig, ax = plt.subplots(figsize=(14, 7))
+        x = team_df["Game Number"]
 
-    x = team_df["Game Number"]
+    # ---------------------- MAIN METRIC PLOTTING ----------------------
+        if metric_mode == "Raw xGF/xGA":
 
-# ---------------------- MAIN METRIC PLOTTING ----------------------
-    if metric_mode == "Raw xGF/xGA":
+        # Force smoothing of at least 3 games for visual clarity
+            smoothing = max(rolling_window, 3)
 
-    # Force smoothing of at least 3 games for visual clarity
-        smoothing = max(rolling_window, 3)
+            y1 = team_df["xGF"].rolling(smoothing).mean()
+            y2 = team_df["xGA"].rolling(smoothing).mean()
+            diff = (team_df["xGF"] - team_df["xGA"]).rolling(smoothing).mean()
 
-        y1 = team_df["xGF"].rolling(smoothing).mean()
-        y2 = team_df["xGA"].rolling(smoothing).mean()
-        diff = (team_df["xGF"] - team_df["xGA"]).rolling(smoothing).mean()
+        # Plot main lines
+            ax.plot(x, y1, label="xGF", linewidth=2.2, color="#1f77b4")
+            ax.plot(x, y2, label="xGA", linewidth=2.2, color="#ff7f0e")
 
-    # Plot main lines
-        ax.plot(x, y1, label="xGF", linewidth=2.2, color="#1f77b4")
-        ax.plot(x, y2, label="xGA", linewidth=2.2, color="#ff7f0e")
+        # Update y-label
+            ylabel = "Expected Goals (Smoothed)"
 
-    # Update y-label
-        ylabel = "Expected Goals (Smoothed)"
+        elif metric_mode == "Expected Goals Percentage (xG%)":
 
-    elif metric_mode == "Expected Goals Percentage (xG%)":
+        # ----- MAIN AXIS (xG%) -----
+            y = team_df["xG%_roll"] if rolling_window > 1 else team_df["xG%"]
+            ax.plot(x, y, label="xG%", linewidth=2.5, color="#1f77b4")
+            ylabel = "xG%"
 
-    # ----- MAIN AXIS (xG%) -----
-        y = team_df["xG%_roll"] if rolling_window > 1 else team_df["xG%"]
-        ax.plot(x, y, label="xG%", linewidth=2.5, color="#1f77b4")
-        ylabel = "xG%"
-
-    # Add season average line
-        avg_xg_pct = y.mean()
-        ax.axhline(avg_xg_pct, color="#1f77b4", linestyle="--", linewidth=1.5, alpha=0.6)
-        ax.text(
-            x.iloc[-1] + 0.3, avg_xg_pct, 
-            f"Avg {avg_xg_pct:.1f}%", 
-            color="#1f77b4", fontsize=11, va="center"
-     )
-
-    # ----- SECONDARY AXIS (Goals) -----
-        ax2 = ax.twinx()
-
-        goals = team_df["goalsFor"]
-        colors = ["green" if w else "red" for w in team_df["win"]]
-
-        ax2.scatter(
-            x, goals,
-            color=colors, s=40, alpha=0.9, edgecolor="black",
-            label="Goals"
+        # Add season average line
+            avg_xg_pct = y.mean()
+            ax.axhline(avg_xg_pct, color="#1f77b4", linestyle="--", linewidth=1.5, alpha=0.6)
+            ax.text(
+                x.iloc[-1] + 0.3, avg_xg_pct, 
+                f"Avg {avg_xg_pct:.1f}%", 
+                color="#1f77b4", fontsize=11, va="center"
         )
 
-        ax2.set_ylabel("Goals For", fontsize=12)
-        ax2.set_ylim(0, max(goals) + 1)
+        # ----- SECONDARY AXIS (Goals) -----
+            ax2 = ax.twinx()
 
-    # Add value labels ABOVE each goal marker
-        for game_num, g, c in zip(x, goals, colors):
-            ax2.text(
-                game_num, g + 0.2,
-                str(g), fontsize=9,
-                ha="center", va="bottom", color=c
+            goals = team_df["goalsFor"]
+            colors = ["green" if w else "red" for w in team_df["win"]]
+
+            ax2.scatter(
+                x, goals,
+                color=colors, s=40, alpha=0.9, edgecolor="black",
+                label="Goals"
             )
 
+            ax2.set_ylabel("Goals For", fontsize=12)
+            ax2.set_ylim(0, max(goals) + 1)
 
-    else:  # Actual vs Expected
-        smoothing = max(rolling_window, 3)
+        # Add value labels ABOVE each goal marker
+            for game_num, g, c in zip(x, goals, colors):
+                ax2.text(
+                    game_num, g + 0.2,
+                    str(g), fontsize=9,
+                    ha="center", va="bottom", color=c
+                )
 
-    # Smoothed values
-        gf = team_df["goalsFor"].rolling(smoothing).mean()
-        ga = team_df["goalsAgainst"].rolling(smoothing).mean()
-        xgf = team_df["xGF"].rolling(smoothing).mean()
 
-    # ---- PLOT GOALS FOR / AGAINST ----
-        ax.plot(x, gf, label="Goals For", linewidth=2, color="#1f77b4")
-        ax.plot(x, ga, label="Goals Against", linewidth=2, color="#ff7f0e")
+        else:  # Actual vs Expected
+            smoothing = max(rolling_window, 3)
 
-    # ---- PLOT xGF AS A SHADED REGION ----
-        ax.fill_between(
-            x, xgf - 0.25, xgf + 0.25,
-            color="#2ca02c", alpha=0.25, label="xGF (smoothed band)"
-     )
-        ax.plot(x, xgf, color="#2ca02c", linewidth=1.6, linestyle="--")
+        # Smoothed values
+            gf = team_df["goalsFor"].rolling(smoothing).mean()
+            ga = team_df["goalsAgainst"].rolling(smoothing).mean()
+            xgf = team_df["xGF"].rolling(smoothing).mean()
 
-        ylabel = "Goals"
+        # ---- PLOT GOALS FOR / AGAINST ----
+            ax.plot(x, gf, label="Goals For", linewidth=2, color="#1f77b4")
+            ax.plot(x, ga, label="Goals Against", linewidth=2, color="#ff7f0e")
 
-    # ---- WIN/LOSS MARKERS ON TOP (clean) ----
-    for idx, row in team_df.iterrows():
-        color = "green" if row["win"] else "red"
-        ax.scatter(
-            row["Game Number"], row["goalsFor"],
-            color=color, s=45, alpha=0.9, edgecolor="black", zorder=10
+        # ---- PLOT xGF AS A SHADED REGION ----
+            ax.fill_between(
+                x, xgf - 0.25, xgf + 0.25,
+                color="#2ca02c", alpha=0.25, label="xGF (smoothed band)"
         )
+            ax.plot(x, xgf, color="#2ca02c", linewidth=1.6, linestyle="--")
 
+            ylabel = "Goals"
 
-# ---------------------- HIGHLIGHT 2ND BACK TO BACK GAME----------------------
-    b2b_game2 = team_df[team_df["days_rest"] == 1]["Game Number"].tolist()
-    for gnum in b2b_game2:
-        ax.axvspan(gnum - 0.5, gnum + 0.5, color="#e8e8e8", alpha=0.6)
-
-# ---------------------- WIN/LOSS MARKERS ----------------------
-    if metric_mode != "Expected Goals Percentage (xG%)":
+        # ---- WIN/LOSS MARKERS ON TOP (clean) ----
         for idx, row in team_df.iterrows():
             color = "green" if row["win"] else "red"
-            y_val = (
-                row["GF_roll"] if (metric_mode == "Actual vs Expected" and rolling_window > 1)
-                else row["goalsFor"]
-            )
             ax.scatter(
-            row["Game Number"], y_val,
-                color=color, s=50, alpha=0.8, edgecolor="black"
-            )
-
-        # ---------------------- ADD GOALS SCORED LABEL ----------------------
-        
-        if metric_mode == "Expected Goals Percentage (xG%)":
-            # label actual goals on the xG% chart
-            ax.text(
-                game_num, y_val + 0.3,
-                str(row["goalsFor"]),
-                fontsize=9, ha="center", va="bottom"
+                row["Game Number"], row["goalsFor"],
+                color=color, s=45, alpha=0.9, edgecolor="black", zorder=10
             )
 
 
-# ---------------------- STYLE IMPROVEMENTS ----------------------
-    ax.set_xlabel("Game Number", fontsize=13)
-    ax.set_ylabel(ylabel, fontsize=13)
-    ax.grid(True, alpha=0.3)
-    ax.legend(fontsize=12)
-    ax.tick_params(axis="both", labelsize=11)
+    # ---------------------- HIGHLIGHT 2ND BACK TO BACK GAME----------------------
+        b2b_game2 = team_df[team_df["days_rest"] == 1]["Game Number"].tolist()
+        for gnum in b2b_game2:
+            ax.axvspan(gnum - 0.5, gnum + 0.5, color="#e8e8e8", alpha=0.6)
 
-    st.pyplot(fig)
+    # ---------------------- WIN/LOSS MARKERS ----------------------
+        if metric_mode != "Expected Goals Percentage (xG%)":
+            for idx, row in team_df.iterrows():
+                color = "green" if row["win"] else "red"
+                y_val = (
+                    row["GF_roll"] if (metric_mode == "Actual vs Expected" and rolling_window > 1)
+                    else row["goalsFor"]
+                )
+                ax.scatter(
+                row["Game Number"], y_val,
+                    color=color, s=50, alpha=0.8, edgecolor="black"
+                )
+
+            # ---------------------- ADD GOALS SCORED LABEL ----------------------
+            
+            if metric_mode == "Expected Goals Percentage (xG%)":
+                # label actual goals on the xG% chart
+                ax.text(
+                    game_num, y_val + 0.3,
+                    str(row["goalsFor"]),
+                    fontsize=9, ha="center", va="bottom"
+                )
+
+
+    # ---------------------- STYLE IMPROVEMENTS ----------------------
+        ax.set_xlabel("Game Number", fontsize=13)
+        ax.set_ylabel(ylabel, fontsize=13)
+        ax.grid(True, alpha=0.3)
+        ax.legend(fontsize=12)
+        ax.tick_params(axis="both", labelsize=11)
+
+        st.pyplot(fig)
 
 
 # ---------------------- BACK-TO-BACK SUMMARY ----------------------
