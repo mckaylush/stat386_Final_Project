@@ -231,8 +231,6 @@ else:
 
 # ---------------------- FIRST GAME vs SECOND GAME OF B2B ----------------------
 
-st.header("First Game vs Second Game of Back-to-Back Sets")
-
 # Identify B2B pairs
 team_df["next_days_rest"] = team_df["days_rest"].shift(-1)
 
@@ -298,11 +296,3 @@ else:
     ax3.grid(True)
 
     st.pyplot(fig3)
-
-    fig4, ax4 = plt.subplots(figsize=(10, 5))
-    avg_df[["xG%"]].plot(kind="bar", ax=ax4)
-    ax4.set_title("xG% Comparison: B2B Game 1 vs Game 2")
-    ax4.set_ylabel("xG%")
-    ax4.grid(True)
-
-    st.pyplot(fig4)
