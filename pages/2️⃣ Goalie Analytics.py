@@ -6,7 +6,7 @@ st.set_page_config(page_title="NHL Goalie Analytics", layout="wide")
 
 # ---------------------- LOAD DATA ----------------------
 @st.cache_data
-def load_goalie_data(path="goalie_allseasons.csv"):
+def load_goalie_data(path="data/goalies_allseasons.csv"):
     df = pd.read_csv(path)
 
     # Fix timestamp if included
