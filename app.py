@@ -1,20 +1,14 @@
 import streamlit as st
+from goalie_leaders import leaderboard_page
+from goalie_model import model_page
 
-st.set_page_config(page_title="NHL Analytics Hub", layout="wide")
+pages = {
+    "🏒 Back-to-Back Team Analysis": None,   # existing page
+    "🥅 Goalie Leaderboard": leaderboard_page,
+    "🤖 Predictive Model": model_page
+}
 
-st.title("🏒 NHL Analytics Platform")
+choice = st.sidebar.radio("Navigation", list(pages.keys()))
 
-st.write("""
-Welcome to your custom NHL analytics dashboard.
-
-Use the sidebar to navigate between pages:
-
-### 📊 Pages:
-- **Team Back-to-Back Analysis**
-- **Goalie Analytics**
-- *(Coming Soon)* League Trends, Predictions, Team Comparisons, etc.
-
----
-
-Data Source: **MoneyPuck.com**
-""")
+if pages[choice] is not None:
+    pages[choice]()
