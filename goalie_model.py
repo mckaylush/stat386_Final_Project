@@ -6,7 +6,7 @@ from sklearn.metrics import r2_score
 
 @st.cache_data
 def load_data():
-    df = pd.read_csv("goalie_data.csv").dropna()
+    df = pd.read_csv("goalies_allseasons.csv").dropna()
     df["save_percent"] = 1 - (df["goals"] / df["xGoals"])
     return df
 

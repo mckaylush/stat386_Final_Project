@@ -3,7 +3,7 @@ import pandas as pd
 
 @st.cache_data
 def load_goalie_data():
-    return pd.read_csv("goalie_data.csv")
+    return pd.read_csv("goalies_allseasons.csv")
 
 def leaderboard_page():
     df = load_goalie_data()
