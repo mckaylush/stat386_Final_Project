@@ -13,6 +13,9 @@ def load_goalie_data(path="data/goalies_allseasons.csv"):
 
     return df
 
+# ---------------------- NHL HEADSHOT URL ----------------------
+def get_headshot_url(player_id):
+    return f"https://assets.nhle.com/mugs/{int(player_id)}.png"
 
 # ---------------------- PAGE FUNCTION ----------------------
 def goalie_analytics_page():
@@ -30,30 +33,18 @@ def goalie_analytics_page():
     seasons = sorted(df["season"].unique())
     situations = sorted(df["situation"].unique())
 
-    # Universal filters
     selected_season = st.sidebar.selectbox("Season", ["All Seasons"] + seasons)
     selected_situation = st.sidebar.selectbox("Game Situation", ["All"] + situations)
 
-    # Goalie selection
     selected_goalie = st.sidebar.selectbox("Primary Goalie", goalies)
 
     if mode == "Compare Two Goalies":
-        compare_choices = [g for g in goalies if g != selected_goalie]
-        selected_goalie_2 = st.sidebar.selectbox("Compare With", compare_choices)
+        selected_goalie_2 = st.sidebar.selectbox("Compare With", [g for g in goalies if g != selected_goalie])
     else:
         selected_goalie_2 = None
 
-    # ---------------------- COLOR MAP ----------------------
-    color_map = {
-        "all": "#1f77b4",
-        "5on5": "#2ca02c",
-        "5on4": "#9467bd",
-        "4on5": "#d62728",
-        "other": "#ff7f0e",
-    }
-
     # ---------------------- FILTERING FUNCTION ----------------------
-    def filter_goalie(name: str) -> pd.DataFrame:
+    def filter_goalie(name):
         g = df[df["name"] == name].copy()
 
         if selected_season != "All Seasons":
@@ -62,38 +53,62 @@ def goalie_analytics_page():
         if selected_situation != "All":
             g = g[g["situation"] == selected_situation]
 
-        if g.empty:
-            return g
-
-        # Core metrics
-        g["save_pct"] = 1 - (g["goals"] / g["xOnGoal"])
         g["GSAx"] = g["xGoals"] - g["goals"]
-        g["color"] = g["situation"].apply(
-            lambda x: color_map.get(str(x).lower(), "#7f7f7f")
-        )
+        g["save_pct"] = 1 - (g["goals"] / g["xOnGoal"])
         return g
 
     goalie1 = filter_goalie(selected_goalie)
     goalie2 = filter_goalie(selected_goalie_2) if selected_goalie_2 else None
 
-    # ---------------------- HEADER ----------------------
+    # ---------------------- HEADER SECTION ----------------------
     if mode == "Single Goalie View":
         st.header(f"📌 Goalie: {selected_goalie}")
+
+        # Profile card layout
+        col_img, col_info = st.columns([1, 3])
+
+        with col_img:
+            try:
+                headshot = get_headshot_url(goalie1["playerId"].iloc[0])
+                st.image(headshot, width=180)
+            except:
+                st.write("(No photo available)")
+
+        with col_info:
+            st.write(f"**Team(s):** {', '.join(sorted(goalie1['team'].unique()))}")
+            st.write(f"**Seasons:** {', '.join(sorted(goalie1['season'].astype(str).unique()))}")
+            st.write(f"**Situation Filter:** {selected_situation}")
+
     else:
         st.header(f"⚔️ Comparison: {selected_goalie} vs {selected_goalie_2}")
 
+        colA, colB = st.columns(2)
+
+        # Left goalie
+        with colA:
+            try:
+                st.image(get_headshot_url(goalie1["playerId"].iloc[0]), width=180)
+            except:
+                st.write("(No photo)")
+
+            st.markdown(f"### {selected_goalie}")
+
+        # Right goalie
+        with colB:
+            try:
+                st.image(get_headshot_url(goalie2["playerId"].iloc[0]), width=180)
+            except:
+                st.write("(No photo)")
+            st.markdown(f"### {selected_goalie_2}")
+
     if goalie1.empty:
-        st.warning("No data available for the selected filters.")
+        st.warning("No data available for selected filters.")
         return
 
-    # ---------------------- SUMMARY TABLE(S) ----------------------
-    def generate_summary(g: pd.DataFrame):
-        # Fix games-played inflation: games_played is repeated by situation.
-        if "games_played" in g.columns:
-            games_by_season = g.groupby("season")["games_played"].max()
-            total_games_played = int(games_by_season.sum())
-        else:
-            total_games_played = None
+    # ---------------------- SUMMARY TABLE SECTION ----------------------
+    def generate_summary(g):
+        games_by_season = g.groupby("season")["games_played"].max()
+        total_games_played = int(games_by_season.sum())
 
         shots_faced = g["xOnGoal"].sum()
         goals_allowed = g["goals"].sum()
@@ -107,121 +122,57 @@ def goalie_analytics_page():
             "Shots Faced": int(shots_faced),
             "Goals Allowed": int(goals_allowed),
             "Expected Goals (xGA)": round(xga_total, 2),
-            "Save %": f"{save_pct:.3f}" if shots_faced > 0 else "N/A",
-            "GSAx Total": round(gsax_total, 2),
+            "Save %": f"{save_pct:.3f}",
+            "Total GSAx": round(gsax_total, 2),
         }
 
     st.subheader("📊 Summary Statistics")
 
     if mode == "Single Goalie View":
-        summary_df = pd.DataFrame(generate_summary(goalie1), index=[0])
-        st.dataframe(summary_df, use_container_width=True)
+        st.dataframe(pd.DataFrame(generate_summary(goalie1), index=[0]))
     else:
-        if goalie2 is None or goalie2.empty:
-            st.warning("No data available for comparison goalie with these filters.")
-        else:
-            comparison_df = pd.DataFrame(
-                [generate_summary(goalie1), generate_summary(goalie2)],
-                index=[selected_goalie, selected_goalie_2],
-            )
-            st.dataframe(comparison_df, use_container_width=True)
+        st.dataframe(pd.DataFrame(
+            [generate_summary(goalie1), generate_summary(goalie2)],
+            index=[selected_goalie, selected_goalie_2]
+        ))
 
-    # ---------------------- GSAx BY SEASON ----------------------
+    # ---------------------- GSAx PER SEASON BAR CHART ----------------------
     st.subheader("📊 GSAx by Season")
 
-    # Aggregate GSAx per season for each goalie
-    g1_season = (
-        goalie1.groupby("season", as_index=False)["GSAx"]
-        .sum()
-        .rename(columns={"GSAx": selected_goalie})
-    )
+    g1_season = goalie1.groupby("season", as_index=False)["GSAx"].sum()
 
-    if goalie2 is not None and not goalie2.empty:
-        g2_season = (
-            goalie2.groupby("season", as_index=False)["GSAx"]
-            .sum()
-            .rename(columns={"GSAx": selected_goalie_2})
-        )
-        season_df = pd.merge(g1_season, g2_season, on="season", how="outer").fillna(0)
-    else:
-        season_df = g1_season.copy()
+    fig, ax = plt.subplots(figsize=(10, 5))
+    ax.bar(g1_season["season"].astype(str), g1_season["GSAx"], label=selected_goalie)
 
-    if season_df.empty:
-        st.warning("No seasonal GSAx data available.")
-    else:
-        season_df = season_df.sort_values("season")
-        seasons = season_df["season"].astype(str).tolist()
-        x = range(len(seasons))
-        width = 0.35
+    if goalie2 is not None:
+        g2_season = goalie2.groupby("season", as_index=False)["GSAx"].sum()
+        ax.bar(g2_season["season"].astype(str), g2_season["GSAx"], label=selected_goalie_2, alpha=0.6)
 
-        fig, ax = plt.subplots(figsize=(10, 5))
+    ax.axhline(0, linestyle="--", color="gray")
+    ax.set_ylabel("Total GSAx")
+    ax.set_title("Goals Saved Above Expected (Season Total)")
+    ax.grid(True, alpha=0.3)
+    ax.legend()
 
-        # Primary goalie bars
-        ax.bar(
-            [i - width / 2 for i in x],
-            season_df[selected_goalie],
-            width=width,
-            label=selected_goalie,
-            color="#1f77b4",
-        )
+    st.pyplot(fig)
 
-        # Comparison goalie bars
-        if goalie2 is not None and not goalie2.empty:
-            ax.bar(
-                [i + width / 2 for i in x],
-                season_df[selected_goalie_2],
-                width=width,
-                label=selected_goalie_2,
-                color="#d62728",
-            )
-
-        ax.axhline(0, linestyle="--", color="gray")
-        ax.set_xticks(list(x))
-        ax.set_xticklabels(seasons)
-        ax.set_ylabel("Total GSAx")
-        ax.set_xlabel("Season")
-        ax.set_title("Goals Saved Above Expected by Season")
-        ax.grid(True, alpha=0.3)
-        ax.legend()
-        st.pyplot(fig)
-
-    # ---------------------- XG vs GOALS SCATTER (COLORED) ----------------------
-    st.subheader("🥅 Expected vs Actual Goals Allowed (Colored by Situation)")
+    # ---------------------- XGA vs GOALS SCATTER ----------------------
+    st.subheader("🥅 Expected vs Actual Goals Allowed")
 
     fig2, ax2 = plt.subplots(figsize=(8, 5))
+    ax2.scatter(goalie1["xGoals"], goalie1["goals"], s=80, label=selected_goalie)
 
-    # Goalie 1 points
-    for situation, group in goalie1.groupby("situation"):
-        ax2.scatter(
-            group["xGoals"],
-            group["goals"],
-            s=70,
-            alpha=0.8,
-            label=f"{situation} – {selected_goalie}",
-            color=color_map.get(str(situation).lower(), "#7f7f7f"),
-        )
+    if goalie2 is not None:
+        ax2.scatter(goalie2["xGoals"], goalie2["goals"], s=80, label=selected_goalie_2)
 
-    # Goalie 2 points (if comparison)
-    if goalie2 is not None and not goalie2.empty:
-        for situation, group in goalie2.groupby("situation"):
-            ax2.scatter(
-                group["xGoals"],
-                group["goals"],
-                s=70,
-                alpha=0.8,
-                marker="^",  # triangle for comparison goalie
-                label=f"{situation} – {selected_goalie_2}",
-                color=color_map.get(str(situation).lower(), "#7f7f7f"),
-            )
-
-    max_val = max(df["xGoals"].max(), df["goals"].max())
-    ax2.plot([0, max_val], [0, max_val], linestyle="--", color="gray", label="Expected = Actual")
-
-    ax2.set_xlabel("Expected Goals Allowed (xGA)")
+    ax2.plot([0, df["xGoals"].max()], [0, df["goals"].max()], linestyle="--", color="gray")
+    ax2.set_xlabel("Expected Goals Against (xGA)")
     ax2.set_ylabel("Actual Goals Allowed")
     ax2.grid(True, alpha=0.3)
-    ax2.legend(fontsize=8)
+    ax2.legend()
+
     st.pyplot(fig2)
 
     st.markdown("---")
     st.caption("Data source: MoneyPuck.com")
+
