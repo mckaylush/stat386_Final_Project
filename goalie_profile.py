@@ -49,11 +49,26 @@ def export_pdf(goalie_name, comparison_name, metrics_df, img_bytes):
 
     pdf.setFont("Helvetica", 10)
 
-    y = 350
+    # Write table values
+    y = 360
+    pdf.setFont("Helvetica", 10)
+
     for row in metrics_df.itertuples():
-        text = f"{row.Index}:  " + "  |  ".join([f"{col}: {getattr(row, col):.3f}" for col in metrics_df.columns])
-        pdf.drawString(50, y, text)
+        row_values = []
+        for col in metrics_df.columns:
+            val = getattr(row, col)
+
+            # Format numeric values safely
+            if isinstance(val, (int, float)):
+                row_values.append(f"{col}: {val:.3f}")
+            else:
+                row_values.append(f"{col}: {val}")
+
+        text = f"{row.Index}:  " + "  |  ".join(row_values)
+
+        pdf.drawString(50, y, text[:90])  # avoid line overflow
         y -= 15
+
 
     pdf.save()
     buffer.seek(0)
