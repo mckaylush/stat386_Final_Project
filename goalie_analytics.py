@@ -108,95 +108,106 @@ def goalie_analytics_page():
         }
 
 
-    # ---------------------- GSAx BY SEASON (REPLACES "GSAx Over Time") ----------------------
+    # ---------------------- GSAx BY SEASON ----------------------
     st.subheader("📊 GSAx by Season")
 
-    # Make sure metrics exist
-    for g in [goalie1, goalie2] if goalie2 is not None else [goalie1]:
-        g["GSAx"] = g["xGoals"] - g["goals"]
-        g["save_pct"] = 1 - (g["goals"] / g["xOnGoal"])
-
-    # Aggregate GSAx by season for each goalie
+    # Aggregate GSAx per season
     g1_season = (
         goalie1.groupby("season", as_index=False)["GSAx"]
         .sum()
-        .rename(columns={"GSAx": "GSAx_" + selected_goalie})
+        .rename(columns={"GSAx": selected_goalie})
     )
 
     if goalie2 is not None:
         g2_season = (
             goalie2.groupby("season", as_index=False)["GSAx"]
             .sum()
-            .rename(columns={"GSAx": "GSAx_" + selected_goalie_2})
+            .rename(columns={"GSAx": selected_goalie_2})
         )
 
-        # Outer join on season so we can compare across all seasons
         season_df = pd.merge(g1_season, g2_season, on="season", how="outer").fillna(0)
+
     else:
         season_df = g1_season.copy()
 
-    # If nothing to show, bail gracefully
     if season_df.empty:
-        st.warning("No seasonal GSAx data available for these filters.")
+        st.warning("No seasonal GSAx data available.")
     else:
-        # Sort seasons
         season_df = season_df.sort_values("season")
 
         fig, ax = plt.subplots(figsize=(10, 5))
-
         seasons = season_df["season"].astype(str).tolist()
         x = range(len(seasons))
         width = 0.35
 
-        # Bars for goalie 1
+        # Bars for primary goalie
         ax.bar(
             [i - width/2 for i in x],
-            season_df["GSAx_" + selected_goalie],
+            season_df[selected_goalie],
             width=width,
             label=selected_goalie,
+            color="#1f77b4"
         )
 
-        # Bars for goalie 2 (if selected)
+        # Bars for comparison goalie
         if goalie2 is not None:
             ax.bar(
                 [i + width/2 for i in x],
-                season_df["GSAx_" + selected_goalie_2],
+                season_df[selected_goalie_2],
                 width=width,
                 label=selected_goalie_2,
+                color="#d62728"
             )
 
-        ax.axhline(0, linestyle="--", color="gray", linewidth=1)
+        ax.axhline(0, linestyle="--", color="gray")
         ax.set_xticks(list(x))
-        ax.set_xticklabels(seasons, rotation=0)
-        ax.set_ylabel("Total GSAx (per season)")
-        ax.set_xlabel("Season")
+        ax.set_xticklabels(seasons)
+        ax.set_ylabel("Total GSAx")
         ax.set_title("Goals Saved Above Expected by Season")
-        ax.grid(True, alpha=0.3)
         ax.legend()
-
         st.pyplot(fig)
 
 
-
-    # ---------------------- XG vs Goals Scatter ----------------------
-    st.subheader("🥅 Expected vs Actual Goals Allowed")
+    # ---------------------- Expected vs Actual (Colored Scatter) ----------------------
+    st.subheader("🥅 Expected vs Actual Goals Allowed (Colored by Situation)")
 
     fig2, ax2 = plt.subplots(figsize=(8, 5))
 
-    def scatter(g, label):
-        ax2.scatter(g["xGoals"], g["goals"], s=70, alpha=0.8, label=label)
+    # Plot goalie 1
+    for situation, group in goalie1.groupby("situation"):
+        ax2.scatter(
+            group["xGoals"],
+            group["goals"],
+            s=70,
+            alpha=0.8,
+            label=f"{situation} - {selected_goalie}",
+            color=color_map.get(str(situation).lower(), "#7f7f7f")
+        )
 
-    scatter(goalie1, selected_goalie)
+    # Plot goalie 2 (optional)
     if goalie2 is not None:
-        scatter(goalie2, selected_goalie_2)
+        for situation, group in goalie2.groupby("situation"):
+            ax2.scatter(
+                group["xGoals"],
+                group["goals"],
+                s=70,
+                alpha=0.8,
+                label=f"{situation} - {selected_goalie_2}",
+                color=color_map.get(str(situation).lower(), "#7f7f7f"),
+                marker="^"   # triangle markers for comparison
+            )
 
-    ax2.plot([0, df["xGoals"].max()], [0, df["goals"].max()], linestyle="--", color="gray")
+    # Add identity line
+    max_val = max(df["xGoals"].max(), df["goals"].max())
+    ax2.plot([0, max_val], [0, max_val], linestyle="--", color="gray", label="Expected = Actual")
+
     ax2.set_xlabel("Expected Goals Allowed (xGA)")
     ax2.set_ylabel("Actual Goals Allowed")
     ax2.grid(True, alpha=0.3)
-    ax2.legend()
+    ax2.legend(fontsize=8)
 
     st.pyplot(fig2)
+
 
     st.markdown("---")
     st.caption("Data source: MoneyPuck.com")
