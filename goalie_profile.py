@@ -53,25 +53,28 @@ def export_pdf(goalie_name, comparison_name, metrics_df, img_bytes):
     y = 360
     pdf.setFont("Helvetica", 10)
 
-    for row in metrics_df.itertuples():
+    for i, row in metrics_df.iterrows():
         row_values = []
-        row_dict = row._asdict()  # safe lookup for all column names
 
         for col in metrics_df.columns:
-            val = row_dict[col]
+            val = row.get(col, "N/A")  # SAFE lookup
 
-            # format numbers cleanly
             if isinstance(val, (int, float)):
                 row_values.append(f"{col}: {val:.3f}")
             else:
                 row_values.append(f"{col}: {val}")
 
-        text = f"{row.Index}:  " + "  |  ".join(row_values)
+        text = f"{i}:  " + "  |  ".join(row_values)
 
-        # prevent overflow in long lines
-        for chunk in [text[i:i+95] for i in range(0, len(text), 95)]:
-            pdf.drawString(50, y, chunk)
+        # wrap long lines
+        while len(text) > 95:
+            pdf.drawString(50, y, text[:95])
+            text = text[95:]
             y -= 15
+
+        pdf.drawString(50, y, text)
+        y -= 15
+
 
 
 
