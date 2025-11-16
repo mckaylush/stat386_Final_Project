@@ -2,6 +2,10 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+from io import BytesIO
+from reportlab.lib.pagesizes import letter
+from reportlab.pdfgen import canvas
+
 
 # ---------------------- LOAD DATA ----------------------
 @st.cache_data
@@ -20,6 +24,39 @@ def normalize(series):
     if series.nunique() == 1:  # avoid division by zero
         return series * 0 + 50
     return (series - series.min()) / (series.max() - series.min()) * 100
+
+
+# ---------------------- PDF EXPORT FUNCTION ----------------------
+def export_pdf(goalie_name, comparison_name, metrics_df, img_bytes):
+
+    buffer = BytesIO()
+    pdf = canvas.Canvas(buffer, pagesize=letter)
+    pdf.setFont("Helvetica-Bold", 16)
+    pdf.drawString(50, 760, f"Goalie Performance Comparison Report")
+
+    pdf.setFont("Helvetica", 12)
+    pdf.drawString(50, 735, f"Primary Goalie: {goalie_name}")
+    pdf.drawString(50, 720, f"Comparison: {comparison_name}")
+
+    # Insert radar image
+    pdf.drawImage(img_bytes, 90, 400, width=400, height=300)
+
+    # Insert metric table
+    pdf.setFont("Helvetica-Bold", 12)
+    pdf.drawString(50, 370, "Metric Values:")
+
+    pdf.setFont("Helvetica", 10)
+
+    y = 350
+    for row in metrics_df.itertuples():
+        text = f"{row.Index}:  " + "  |  ".join([f"{col}: {getattr(row, col):.3f}" for col in metrics_df.columns])
+        pdf.drawString(50, y, text)
+        y -= 15
+
+    pdf.save()
+    buffer.seek(0)
+
+    return buffer
 
 
 # ---------------------- PAGE FUNCTION ----------------------
@@ -42,7 +79,7 @@ def goalie_profile_page():
     goalie1 = st.sidebar.selectbox("Primary Goalie", goalies)
     goalie2 = st.sidebar.selectbox("Compare Against", [g for g in goalies if g != goalie1])
 
-    # ---------------------- APPLY FILTERS ----------------------
+    # ---------------------- FILTERING FUNCTION ----------------------
     def filter_goalie(name):
         g = df[df["name"] == name].copy()
 
@@ -55,20 +92,19 @@ def goalie_profile_page():
         if g.empty:
             return None
 
-        # Compute key goalie performance metrics
+        # Performance metrics
         g["save_pct"] = 1 - (g["goals"] / g["xOnGoal"])
         g["GSAx"] = g["xGoals"] - g["goals"]
         g["highDangerSavePct"] = 1 - (g["highDangerGoals"] / g["highDangerShots"].replace(0, np.nan))
         g["mediumDangerSavePct"] = 1 - (g["mediumDangerGoals"] / g["mediumDangerShots"].replace(0, np.nan))
         g["lowDangerSavePct"] = 1 - (g["lowDangerGoals"] / g["lowDangerShots"].replace(0, np.nan))
 
-        # Final aggregated metric row
         return pd.DataFrame({
             "Save %": [g["save_pct"].mean()],
             "High Danger Save %": [g["highDangerSavePct"].mean()],
             "Medium Danger Save %": [g["mediumDangerSavePct"].mean()],
             "Low Danger Save %": [g["lowDangerSavePct"].mean()],
-            "GSAx per Game": [g["GSAx"].sum() / max(g["games_played"].max(), 1)]
+            "GSAx/Game": [g["GSAx"].sum() / max(g["games_played"].max(), 1)]
         })
 
     g1 = filter_goalie(goalie1)
@@ -78,47 +114,63 @@ def goalie_profile_page():
         st.warning("Not enough data for selected filters.")
         return
 
-    # ---------------------- RADAR CHART ----------------------
-    st.subheader("🕷️ Radar Skill Visualization (Overlaid)")
+    # ---------------------- TEAM AVERAGE BENCHMARK ----------------------
+    team_avg = pd.DataFrame({
+        "Save %": [df["goals"].sum() / df["xOnGoal"].sum()],
+        "High Danger Save %": [(1 - df["highDangerGoals"].sum() / df["highDangerShots"].sum())],
+        "Medium Danger Save %": [(1 - df["mediumDangerGoals"].sum() / df["mediumDangerShots"].sum())],
+        "Low Danger Save %": [(1 - df["lowDangerGoals"].sum() / df["lowDangerShots"].sum())],
+        "GSAx/Game": [(df["xGoals"].sum() - df["goals"].sum()) / (df["games_played"].max() * len(df["name"].unique()))]
+    })
+
+    # ---------------------- RADAR VISUAL ----------------------
+    st.subheader("🕷️ Radar Skill Visualization")
 
     metrics = list(g1.columns)
     angles = np.linspace(0, 2 * np.pi, len(metrics), endpoint=False).tolist()
-    angles += angles[:1]  # loop back to start
+    angles += angles[:1]
 
-    # Normalize for fair comparison
-    combined = pd.concat([g1, g2])
+    combined = pd.concat([g1, g2, team_avg])
 
-    g1_values = normalize(g1.iloc[0]).tolist()
-    g2_values = normalize(g2.iloc[0]).tolist()
+    values1 = normalize(g1.iloc[0]).tolist() + [normalize(g1.iloc[0]).tolist()[0]]
+    values2 = normalize(g2.iloc[0]).tolist() + [normalize(g2.iloc[0]).tolist()[0]]
+    values_avg = normalize(team_avg.iloc[0]).tolist() + [normalize(team_avg.iloc[0]).tolist()[0]]
 
-    g1_values += g1_values[:1]
-    g2_values += g2_values[:1]
+    fig, ax = plt.subplots(figsize=(8, 8), subplot_kw=dict(polar=True))
 
-    fig, ax = plt.subplots(figsize=(7, 7), subplot_kw=dict(polar=True))
+    ax.plot(angles, values1, linewidth=2, label=goalie1, color="#1f77b4")
+    ax.fill(angles, values1, alpha=0.25, color="#1f77b4")
 
-    ax.plot(angles, g1_values, linewidth=2, label=goalie1, color="#1f77b4")
-    ax.fill(angles, g1_values, alpha=0.25, color="#1f77b4")
+    ax.plot(angles, values2, linewidth=2, label=goalie2, color="#d62728")
+    ax.fill(angles, values2, alpha=0.25, color="#d62728")
 
-    ax.plot(angles, g2_values, linewidth=2, label=goalie2, color="#d62728")
-    ax.fill(angles, g2_values, alpha=0.25, color="#d62728")
+    # Benchmark line
+    ax.plot(angles, values_avg, linewidth=2, linestyle="--", label="NHL Avg", color="#2ca02c")
 
     ax.set_xticks(angles[:-1])
-    ax.set_xticklabels(metrics, fontsize=10)
+    ax.set_xticklabels(metrics)
     ax.set_ylim(0, 100)
-    ax.set_title("Skill Comparison Radar", fontsize=14, pad=20)
-    ax.legend(loc="upper right", bbox_to_anchor=(1.25, 1.1))
+    ax.legend(loc="upper right", bbox_to_anchor=(1.3, 1.1))
+
+    # Save image bytes for PDF
+    img_buffer = BytesIO()
+    fig.savefig(img_buffer, format="png")
+    img_buffer.seek(0)
 
     st.pyplot(fig)
 
-    # ---------------------- RAW METRIC TABLE ----------------------
-    st.subheader("📋 Raw Metrics")
+    # ---------------------- METRIC TABLE ----------------------
+    st.subheader("📋 Metrics Table")
+    output_df = pd.concat([g1, g2, team_avg], axis=0)
+    output_df.index = [goalie1, goalie2, "League Avg"]
+    st.dataframe(output_df.style.format("{:.3f}"))
 
-    result_table = pd.DataFrame([g1.iloc[0], g2.iloc[0]], index=[goalie1, goalie2])
-    st.dataframe(result_table.style.format("{:.3f}"))
+    # ---------------------- PDF DOWNLOAD ----------------------
+    st.subheader("📄 Export Comparison Report")
+
+    if st.button("📥 Download PDF"):
+        pdf_buffer = export_pdf(goalie1, goalie2, output_df, img_buffer)
+        st.download_button("Download File", data=pdf_buffer, file_name=f"{goalie1}_vs_{goalie2}_report.pdf")
 
 
-    st.markdown("---")
-    st.caption("Data source: MoneyPuck.com")
-
-
-# ---------------------- END ----------------------
+    st.caption("Data sourced from MoneyPuck.com")
