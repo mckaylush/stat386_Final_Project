@@ -16,7 +16,24 @@ def load_goalie_data(path="data/goalies_allseasons.csv"):
     # Compute core metrics
     df["GSAx"] = df["xGoals"] - df["goals"]
     df["save_pct"] = 1 - (df["goals"] / df["xOnGoal"])
-    df["rest_days"] = df.groupby("name")["gameDate"].diff().dt.days.fillna("Start")
+    # Detect which column contains dates
+    possible_date_cols = ["gameDate", "date", "game_date", "Date", "GAME_DATE"]
+
+    date_col = next((c for c in possible_date_cols if c in df.columns), None)
+
+    if date_col is None:
+        st.error("❌ No game date column found (expected 'gameDate', 'date', etc.).\nCannot compute fatigue without dates.")
+        return
+
+    # Ensure the date column is datetime
+    df[date_col] = pd.to_datetime(df[date_col], errors="coerce")
+
+    # Sort so rest calculation makes sense
+    df = df.sort_values([ "name", date_col ])
+
+    # Calculate rest days
+    df["rest_days"] = df.groupby("name")[date_col].diff().dt.days
+    df["rest_days"] = df["rest_days"].fillna("Start")
 
     # Collapse too-large gap values
     df["rest_cat"] = df["rest_days"].apply(lambda x:
