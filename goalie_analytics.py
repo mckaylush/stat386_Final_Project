@@ -171,7 +171,7 @@ def goalie_analytics_page():
                 [i + width / 2 for i in x],
                 season_df[selected_goalie_2],
                 width=width,
-                label[selected_goalie_2],
+                label=selected_goalie_2,
                 color="#d62728",
             )
 
