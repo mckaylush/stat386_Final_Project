@@ -15,7 +15,12 @@ def load_goalie_data(path="data/goalies_allseasons.csv"):
 
 # ---------------------- NHL HEADSHOT URL ----------------------
 def get_headshot_url(player_id):
-    return f"https://assets.nhle.com/mugs/{int(player_id)}.png"
+    if pd.isna(player_id):
+        return None  # prevent errors if missing
+    return f"https://assets.nhle.com/mugs/nhl/{int(player_id)}.png"
+
+def get_team_logo(team_abbrev):
+    return f"https://assets.nhle.com/logos/nhl/svg/{team_abbrev.upper()}_light.svg"
 
 # ---------------------- PAGE FUNCTION ----------------------
 def goalie_analytics_page():
