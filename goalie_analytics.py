@@ -91,7 +91,7 @@ def goalie_analytics_page():
     # ---------------------- CHARTS ----------------------
 
     # ⭐ 1: Trend GSAx Over Time
-    i# ⭐ 1: Trend GSAx Over Time with color-coded situations
+    # ⭐ 1: Trend GSAx Over Time with color-coded situations
     if "gameDate" in filtered.columns and filtered["gameDate"].notna().any():
         st.subheader("📈 GSAx Trend Over Time (Colored by Situation)")
 
