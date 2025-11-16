@@ -2,125 +2,116 @@ import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
 
-st.set_page_config(layout="wide")
-
 # ---------------------- LOAD DATA ----------------------
 @st.cache_data
 def load_goalie_data(path="data/goalies_allseasons.csv"):
     df = pd.read_csv(path)
 
-    # Ensure dates format correctly
-    if "gameDate" in df.columns:
-        df["gameDate"] = pd.to_datetime(df["gameDate"], errors="ignore")
-
-    # Compute core metrics
-    df["GSAx"] = df["xGoals"] - df["goals"]
-    df["save_pct"] = 1 - (df["goals"] / df["xOnGoal"])
-    # Detect which column contains dates
-    possible_date_cols = ["gameDate", "date", "game_date", "Date", "GAME_DATE"]
-
-    date_col = next((c for c in possible_date_cols if c in df.columns), None)
-
-    if date_col is None:
-        st.error("❌ No game date column found (expected 'gameDate', 'date', etc.).\nCannot compute fatigue without dates.")
-        return
-
-    # Ensure the date column is datetime
-    df[date_col] = pd.to_datetime(df[date_col], errors="coerce")
-
-    # Sort so rest calculation makes sense
-    df = df.sort_values([ "name", date_col ])
-
-    # Calculate rest days
-    df["rest_days"] = df.groupby("name")[date_col].diff().dt.days
-    df["rest_days"] = df["rest_days"].fillna("Start")
-
-    # Collapse too-large gap values
-    df["rest_cat"] = df["rest_days"].apply(lambda x:
-                                           "Start" if x == "Start"
-                                           else "Back-to-Back (1 Day)" if x == 1
-                                           else "Short Rest (2 Days)" if x == 2
-                                           else "Normal Rest (3–4 Days)" if 3 <= x <= 4
-                                           else "Extended Rest (5+ Days)"
-                                          )
+    # No gameDate column yet — this version won’t attempt rest-day logic
     return df
 
 
 # ---------------------- PAGE FUNCTION ----------------------
 def goalie_fatigue_page():
 
-    st.title("🥵 Goalie Fatigue & Workload Impact Analysis")
+    st.title("🥵 Goalie Fatigue Explorer (Season-Based)")
 
     df = load_goalie_data()
 
-    # Sidebar filters
+    # -------- SIDEBAR --------
     st.sidebar.header("Filters")
+
+    mode = st.sidebar.radio("Mode", ["Single Goalie View", "Compare Two Goalies"])
+
     goalies = sorted(df["name"].unique())
+    seasons = sorted(df["season"].unique())
+    situations = sorted(df["situation"].unique())
 
-    selected_goalie = st.sidebar.selectbox("Select Goalie", ["League Average"] + goalies)
+    selected_goalie = st.sidebar.selectbox("Primary Goalie", goalies)
+    selected_season = st.sidebar.selectbox("Season", ["All Seasons"] + seasons)
+    selected_situation = st.sidebar.selectbox("Game Situation", ["All"] + situations)
 
-    # Filter if user selects an individual goalie
-    if selected_goalie != "League Average":
-        df_filtered = df[df["name"] == selected_goalie].copy()
-        title = f"📌 Performance Breakdown — {selected_goalie}"
+    if mode == "Compare Two Goalies":
+        selected_goalie_2 = st.sidebar.selectbox("Compare With", [g for g in goalies if g != selected_goalie])
     else:
-        df_filtered = df.copy()
-        title = "📌 League-Wide Fatigue Performance Trends"
+        selected_goalie_2 = None
 
-    st.header(title)
+    # -------- FILTERING --------
+    def filter_goalie(name):
+        g = df[df["name"] == name].copy()
 
-    # Summary Table
-    st.subheader("📊 Performance by Rest Level")
+        if selected_season != "All Seasons":
+            g = g[g["season"] == selected_season]
 
-    summary = df_filtered.groupby("rest_cat").agg(
-        Games=("games_played", "count"),
-        Avg_SavePct=("save_pct", "mean"),
-        Avg_GSAx=("GSAx", "mean"),
-        Avg_xGA=("xGoals", "mean"),
-        Avg_Shots=("xOnGoal", "mean"),
-    ).round(3)
+        if selected_situation != "All":
+            g = g[g["situation"] == selected_situation]
 
-    st.dataframe(summary, use_container_width=True)
+        return g
 
-    # ---------------------- BAR CHART: SAVE % ----------------------
-    st.subheader("🧤 Save Percentage vs Rest Level")
+    g1 = filter_goalie(selected_goalie)
+    g2 = filter_goalie(selected_goalie_2) if selected_goalie_2 else None
+
+    if g1.empty:
+        st.warning("⚠ No matching data found for this goalie/season filter.")
+        return
+
+    # -------- COMPUTE METRICS --------
+
+    # Approximate game segments (season quarters)
+    def segment(df):
+        df = df.sort_values("games_played")
+        df["segment"] = pd.qcut(df["games_played"], q=4, labels=["Q1", "Q2", "Q3", "Q4"])
+        df["save_pct"] = 1 - (df["goals"] / df["xOnGoal"])
+        df["GSAx"] = df["xGoals"] - df["goals"]
+        return df
+
+    g1 = segment(g1)
+    if g2 is not None:
+        g2 = segment(g2)
+
+    # -------- DISPLAY SUMMARY --------
+    st.subheader("📊 Fatigue Pattern Summary")
+
+    def summary(df):
+        return df.groupby("segment")[["save_pct", "GSAx"]].mean().round(3)
+
+    st.write(f"📌 **{selected_goalie} Trend:**")
+    st.dataframe(summary(g1))
+
+    if g2 is not None:
+        st.write(f"📌 **{selected_goalie_2} Trend:**")
+        st.dataframe(summary(g2))
+
+    # -------- CHARTS --------
+
+    st.subheader("📈 Save Percentage Decay Curve")
 
     fig1, ax1 = plt.subplots(figsize=(10, 5))
-    ax1.bar(summary.index, summary["Avg_SavePct"], color="#1f77b4")
-    ax1.set_ylabel("Save %")
-    ax1.set_ylim(0, max(summary["Avg_SavePct"]) + 0.05)
-    ax1.grid(True, alpha=0.3)
-    plt.xticks(rotation=20)
+    ax1.plot(summary(g1).index, summary(g1)["save_pct"], marker="o", label=selected_goalie)
 
+    if g2 is not None:
+        ax1.plot(summary(g2).index, summary(g2)["save_pct"], marker="o", label=selected_goalie_2)
+
+    ax1.set_ylabel("Save %")
+    ax1.set_xlabel("Season Segment")
+    ax1.set_title("Does Performance Drop Over the Season?")
+    ax1.grid(True, alpha=0.3)
+    ax1.legend()
     st.pyplot(fig1)
 
-    # ---------------------- BAR CHART: GSAx ----------------------
-    st.subheader("🔥 Goals Saved Above Expected (GSAx) vs Rest Level")
+    st.subheader("📉 GSAx Trend Across Season")
 
     fig2, ax2 = plt.subplots(figsize=(10, 5))
-    colors = ["#2ca02c" if v > 0 else "#d62728" for v in summary["Avg_GSAx"]]
-    ax2.bar(summary.index, summary["Avg_GSAx"], color=colors)
-    ax2.axhline(0, linestyle="--", color="gray")
-    ax2.set_ylabel("Avg. GSAx (per game)")
-    ax2.grid(True, alpha=0.3)
-    plt.xticks(rotation=20)
+    ax2.plot(summary(g1).index, summary(g1)["GSAx"], marker="o", label=selected_goalie)
 
+    if g2 is not None:
+        ax2.plot(summary(g2).index, summary(g2)["GSAx"], marker="o", label=selected_goalie_2)
+
+    ax2.set_ylabel("GSAx")
+    ax2.set_xlabel("Season Segment")
+    ax2.grid(True, alpha=0.3)
+    ax2.legend()
     st.pyplot(fig2)
 
-    # ---------------------- LINE TREND: GSAx by Chronological Games ----------------------
-    st.subheader("📈 Game-to-Game Fatigue Trend")
-
-    df_filtered = df_filtered.sort_values("gameDate")
-
-    fig3, ax3 = plt.subplots(figsize=(12, 5))
-    ax3.plot(df_filtered["gameDate"], df_filtered["GSAx"], marker="o", linewidth=2)
-    ax3.axhline(0, linestyle="--", color="gray")
-    ax3.set_ylabel("GSAx Per Game")
-    ax3.grid(True, alpha=0.35)
-
-    st.pyplot(fig3)
-
     st.markdown("---")
-    st.caption("Data Source: MoneyPuck.com — processed for analytics")
-
-
+    st.caption("Future upgrade: real fatigue using per-game rest, workload, and schedule tracking.")
