@@ -5,6 +5,8 @@ import matplotlib.pyplot as plt
 from io import BytesIO
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
+from reportlab.lib.utils import ImageReader
+
 
 
 # ---------------------- LOAD DATA ----------------------
@@ -39,7 +41,7 @@ def export_pdf(goalie_name, comparison_name, metrics_df, img_bytes):
     pdf.drawString(50, 720, f"Comparison: {comparison_name}")
 
     # Insert radar image
-    pdf.drawImage(img_bytes, 90, 400, width=400, height=300)
+    pdf.drawImage(ImageReader(img_bytes), 90, 400, width=400, height=300)
 
     # Insert metric table
     pdf.setFont("Helvetica-Bold", 12)
