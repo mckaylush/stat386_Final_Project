@@ -2,11 +2,12 @@ import streamlit as st
 from goalie_leaders import leaderboard_page
 from goalie_model import model_page
 from back_to_back import back_to_back_page
-
+from goalie_analytics import goalie_analytics_page
 
 pages = {
     "🏒 Back-to-Back Team Analysis": back_to_back_page,
     "🥅 Goalie Leaderboard": leaderboard_page,
+    "🎯 Goalie Analytics": goalie_analytics_page,
     "🤖 Predictive Model": model_page
 }
 
