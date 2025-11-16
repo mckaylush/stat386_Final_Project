@@ -19,9 +19,6 @@ def get_headshot_url(player_id):
         return None  # prevent errors if missing
     return f"https://assets.nhle.com/mugs/nhl/{int(player_id)}.png"
 
-def get_team_logo(team_abbrev):
-    return f"https://assets.nhle.com/logos/nhl/svg/{team_abbrev.upper()}_light.svg"
-
 # ---------------------- PAGE FUNCTION ----------------------
 def goalie_analytics_page():
 
@@ -162,21 +159,59 @@ def goalie_analytics_page():
     st.pyplot(fig)
 
     # ---------------------- XGA vs GOALS SCATTER ----------------------
-    st.subheader("🥅 Expected vs Actual Goals Allowed")
+    st.subheader("🥅 Expected vs Actual Goals Allowed (Colored by Situation)")
+
+    # Color mapping stays consistent with situations
+    color_map = {
+        "all": "#1f77b4",
+        "5on5": "#2ca02c",
+        "5on4": "#9467bd",
+        "4on5": "#d62728",
+        "other": "#ff7f0e",
+    }
 
     fig2, ax2 = plt.subplots(figsize=(8, 5))
-    ax2.scatter(goalie1["xGoals"], goalie1["goals"], s=80, label=selected_goalie)
 
-    if goalie2 is not None:
-        ax2.scatter(goalie2["xGoals"], goalie2["goals"], s=80, label=selected_goalie_2)
+    # ---- Plot primary goalie ----
+    for situation, group in goalie1.groupby("situation"):
+        ax2.scatter(
+            group["xGoals"],
+            group["goals"],
+            s=80,
+            alpha=0.8,
+            label=f"{selected_goalie} — {situation}",
+            color=color_map.get(str(situation).lower(), "#7f7f7f")
+        )
 
-    ax2.plot([0, df["xGoals"].max()], [0, df["goals"].max()], linestyle="--", color="gray")
+    # ---- Plot comparison goalie if selected ----
+    if goalie2 is not None and not goalie2.empty:
+        for situation, group in goalie2.groupby("situation"):
+            ax2.scatter(
+                group["xGoals"],
+                group["goals"],
+                s=90,
+                alpha=0.8,
+                marker="X",
+                label=f"{selected_goalie_2} — {situation}",
+                color=color_map.get(str(situation).lower(), "#aaaaaa")  # lighter tint
+            )
+
+    # Reference line
+    ax2.plot(
+        [0, df["xGoals"].max()],
+        [0, df["goals"].max()],
+        linestyle="--",
+        color="gray",
+        label="Expected = Actual"
+    )
+
     ax2.set_xlabel("Expected Goals Against (xGA)")
     ax2.set_ylabel("Actual Goals Allowed")
     ax2.grid(True, alpha=0.3)
-    ax2.legend()
+    ax2.legend(bbox_to_anchor=(1.02, 1), loc='upper left')
 
     st.pyplot(fig2)
+
 
     st.markdown("---")
     st.caption("Data source: MoneyPuck.com")
