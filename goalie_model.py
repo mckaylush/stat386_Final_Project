@@ -5,31 +5,49 @@ from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import r2_score
 
+
 # ---------------------- DATA LOADER ----------------------
 @st.cache_data
 def load_data():
     df = pd.read_csv("data/goalies_allseasons.csv")
 
     # Ensure numeric columns only
-    df = df.replace([np.inf, -np.inf], np.nan).dropna()
+    df = df.replace([np.inf, -np.inf], np.nan)
 
-    # Create save percentage metric
-    df["save_percent"] = 1 - (df["goals"] / df["xGoals"]).clip(0, 1)
+    # Remove cases where xGoals = 0 (cannot compute save %)
+    df = df[df["xGoals"] > 0]
+
+    # Create metric
+    df["save_percent"] = 1 - (df["goals"] / df["xGoals"])
+
+    # Clip to valid range
+    df["save_percent"] = df["save_percent"].clip(0, 1)
+
+    # Drop anything still bad
+    df = df.dropna(subset=["save_percent"])
 
     return df
 
 
 # ---------------------- PAGE UI ----------------------
 def model_page():
-    st.title("🤖 NHL Goalie Performance Model")
 
+    st.title("🤖 NHL Goalie Performance Model")
     df = load_data()
 
-    # Features to train on
     features = ["xGoals", "highDangerShots", "mediumDangerShots", "lowDangerShots", "games_played"]
     
-    X = df[features]
-    y = df["save_percent"]
+    # Drop rows missing any feature values
+    df = df.dropna(subset=features)
+
+    X = df[features].astype(float)
+    y = df["save_percent"].astype(float)
+
+    # Extra safety cleanup: remove non-finite values
+    mask = np.isfinite(X).all(axis=1) & np.isfinite(y)
+    X = X[mask]
+    y = y[mask]
+
 
     # Train/test split
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.25, random_state=42)
@@ -71,6 +89,3 @@ def model_page():
     result = model.predict(user_df)[0]
 
     st.success(f"🧤 Predicted Save %: **{result:.3f}**")
-
-
-
