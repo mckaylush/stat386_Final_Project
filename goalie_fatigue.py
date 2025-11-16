@@ -59,11 +59,25 @@ def goalie_fatigue_page():
 
     # Approximate game segments (season quarters)
     def segment(df):
-        df = df.sort_values("games_played")
-        df["segment"] = pd.qcut(df["games_played"], q=4, labels=["Q1", "Q2", "Q3", "Q4"])
+        df = df.sort_values("games_played").reset_index(drop=True)
+
+        n = len(df)
+
+        if n >= 12:
+            # Full quartiles
+            df["segment"] = pd.qcut(df.index, q=4, labels=["Q1", "Q2", "Q3", "Q4"])
+        elif n >= 6:
+            # Use halves if not enough data for 4 groups
+            df["segment"] = pd.qcut(df.index, q=2, labels=["Early Season", "Late Season"])
+        else:
+            # Not enough records → single bucket
+            df["segment"] = "All Games"
+
         df["save_pct"] = 1 - (df["goals"] / df["xOnGoal"])
         df["GSAx"] = df["xGoals"] - df["goals"]
+
         return df
+
 
     g1 = segment(g1)
     if g2 is not None:
