@@ -51,6 +51,17 @@ def goalie_analytics_page():
 
     filtered = filtered.reset_index(drop=True)
 
+    # Color mapping for situations
+    color_map = {
+    "all": "#1f77b4",
+    "5v5": "#2ca02c",
+    "pp": "#d62728",
+    "pk": "#9467bd",
+}
+
+    # Assign a default if a new situation appears
+    filtered["color"] = filtered["situation"].apply(lambda x: color_map.get(str(x).lower(), "#7f7f7f"))
+
     # ---------------------- HEADER ----------------------
     if selected_goalie != "All Goalies":
         st.header(f"📌 Goalie: {selected_goalie}")
@@ -80,17 +91,30 @@ def goalie_analytics_page():
     # ---------------------- CHARTS ----------------------
 
     # ⭐ 1: Trend GSAx Over Time
+    i# ⭐ 1: Trend GSAx Over Time with color-coded situations
     if "gameDate" in filtered.columns and filtered["gameDate"].notna().any():
-        st.subheader("📈 GSAx Trend Over Time")
+        st.subheader("📈 GSAx Trend Over Time (Colored by Situation)")
 
         filtered = filtered.sort_values("gameDate")
         fig1, ax1 = plt.subplots(figsize=(12, 5))
-        ax1.plot(filtered["gameDate"], filtered["GSAx"], marker="o", linewidth=2)
+
+        for situation, group in filtered.groupby("situation"):
+            ax1.plot(
+                group["gameDate"], 
+                group["GSAx"], 
+                marker="o", 
+                linewidth=2,
+                label=situation, 
+                color=color_map.get(str(situation).lower(), "#7f7f7f")
+            )
+
         ax1.axhline(0, color="gray", linestyle="--")
         ax1.set_ylabel("Goals Saved Above Expected")
         ax1.grid(True, alpha=0.3)
+        ax1.legend(title="Game Situation")
 
         st.pyplot(fig1)
+
 
     # ⭐ 2: Shot Danger Breakdown
     st.subheader("🎯 Shot Danger Breakdown")
@@ -115,17 +139,36 @@ def goalie_analytics_page():
         ax2.grid(True, alpha=0.3)
         st.pyplot(fig2)
 
-    # ⭐ 3: Expected vs Actual Scatter
-    st.subheader("🥅 Expected vs Actual Goals Allowed")
+    # ⭐ 3: Expected vs Actual Goals Colored by Situation
+    st.subheader("🥅 Expected vs Actual Goals Allowed (Colored by Situation)")
 
     fig3, ax3 = plt.subplots(figsize=(8, 5))
-    ax3.scatter(filtered["xGoals"], filtered["goals"], s=60, alpha=0.7)
-    ax3.plot([0, max(filtered["xGoals"])], [0, max(filtered["goals"])], linestyle="--", color="gray")
+
+    for situation, group in filtered.groupby("situation"):
+        ax3.scatter(
+            group["xGoals"],
+            group["goals"],
+            s=70,
+            alpha=0.8,
+            label=situation,
+            color=color_map.get(str(situation).lower(), "#7f7f7f")
+        )
+
+    ax3.plot(
+        [0, max(filtered["xGoals"])],
+        [0, max(filtered["goals"])],
+        linestyle="--",
+        color="gray",
+        label="Expected=Actual Line"
+    )
+
     ax3.set_xlabel("Expected Goals (xGA)")
     ax3.set_ylabel("Actual Goals Allowed")
     ax3.grid(True, alpha=0.3)
+    ax3.legend(title="Game Situation")
 
     st.pyplot(fig3)
+
 
     st.markdown("---")
     st.caption("Data source: MoneyPuck.com")
