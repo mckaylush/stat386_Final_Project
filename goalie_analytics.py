@@ -52,15 +52,19 @@ def goalie_analytics_page():
     filtered = filtered.reset_index(drop=True)
 
     # Color mapping for situations
+    # Color mapping for real situation labels in your data
     color_map = {
-    "all": "#1f77b4",
-    "5v5": "#2ca02c",
-    "pp": "#d62728",
-    "pk": "#9467bd",
-}
+        "all": "#1f77b4",     # blue
+        "5on5": "#2ca02c",    # green - even strength
+        "5on4": "#9467bd",    # purple - PP
+        "4on5": "#d62728",    # red - PK
+        "other": "#ff7f0e"    # orange - misc
+    }
 
-    # Assign a default if a new situation appears
-    filtered["color"] = filtered["situation"].apply(lambda x: color_map.get(str(x).lower(), "#7f7f7f"))
+    # Apply color matching, fallback = gray
+    filtered["color"] = filtered["situation"].apply(
+        lambda x: color_map.get(str(x).lower(), "#7f7f7f")
+    )
 
     # ---------------------- HEADER ----------------------
     if selected_goalie != "All Goalies":
