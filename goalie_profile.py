@@ -55,10 +55,12 @@ def export_pdf(goalie_name, comparison_name, metrics_df, img_bytes):
 
     for row in metrics_df.itertuples():
         row_values = []
-        for col in metrics_df.columns:
-            val = getattr(row, col)
+        row_dict = row._asdict()  # safe lookup for all column names
 
-            # Format numeric values safely
+        for col in metrics_df.columns:
+            val = row_dict[col]
+
+            # format numbers cleanly
             if isinstance(val, (int, float)):
                 row_values.append(f"{col}: {val:.3f}")
             else:
@@ -66,8 +68,11 @@ def export_pdf(goalie_name, comparison_name, metrics_df, img_bytes):
 
         text = f"{row.Index}:  " + "  |  ".join(row_values)
 
-        pdf.drawString(50, y, text[:90])  # avoid line overflow
-        y -= 15
+        # prevent overflow in long lines
+        for chunk in [text[i:i+95] for i in range(0, len(text), 95)]:
+            pdf.drawString(50, y, chunk)
+            y -= 15
+
 
 
     pdf.save()
