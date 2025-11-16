@@ -104,7 +104,6 @@ def goalie_analytics_page():
         )
         st.dataframe(comparison_df)
 
-    # ---------------------- CHARTS ----------------------
     # ---------------------- GSAx BY SEASON (REPLACES "GSAx Over Time") ----------------------
     st.subheader("📊 GSAx by Season")
 
