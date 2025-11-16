@@ -107,23 +107,36 @@ def goalie_analytics_page():
     # ---------------------- CHARTS ----------------------
     st.subheader("📈 GSAx Over Time")
 
+# ---- Compute metrics before plotting ----
+    for g in [goalie1, goalie2] if goalie2 is not None else [goalie1]:
+        g["save_pct"] = 1 - (g["goals"] / g["xOnGoal"])
+        g["GSAx"] = g["xGoals"] - g["goals"]
+
     fig, ax = plt.subplots(figsize=(12, 5))
 
     def plot_trend(g, label):
         if "gameDate" in g.columns and g["gameDate"].notna().any():
             g = g.sort_values("gameDate")
-            ax.plot(g["gameDate"], g["GSAx"], marker="o", linewidth=2, label=label)
+            ax.plot(
+                g["gameDate"], 
+                g["GSAx"], 
+                marker="o", 
+                linewidth=2, 
+                label=label
+            )
 
     plot_trend(goalie1, selected_goalie)
+
     if goalie2 is not None:
         plot_trend(goalie2, selected_goalie_2)
 
     ax.axhline(0, linestyle="--", color="gray")
-    ax.set_ylabel("GSAx")
+    ax.set_ylabel("GSAx (Goals Saved Above Expected)")
     ax.grid(True, alpha=0.3)
     ax.legend()
 
     st.pyplot(fig)
+
 
     # ---------------------- XG vs Goals Scatter ----------------------
     st.subheader("🥅 Expected vs Actual Goals Allowed")
