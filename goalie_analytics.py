@@ -105,37 +105,74 @@ def goalie_analytics_page():
         st.dataframe(comparison_df)
 
     # ---------------------- CHARTS ----------------------
-    st.subheader("📈 GSAx Over Time")
+    # ---------------------- GSAx BY SEASON (REPLACES "GSAx Over Time") ----------------------
+    st.subheader("📊 GSAx by Season")
 
-# ---- Compute metrics before plotting ----
+    # Make sure metrics exist
     for g in [goalie1, goalie2] if goalie2 is not None else [goalie1]:
-        g["save_pct"] = 1 - (g["goals"] / g["xOnGoal"])
         g["GSAx"] = g["xGoals"] - g["goals"]
+        g["save_pct"] = 1 - (g["goals"] / g["xOnGoal"])
 
-    fig, ax = plt.subplots(figsize=(12, 5))
-
-    def plot_trend(g, label):
-        if "gameDate" in g.columns and g["gameDate"].notna().any():
-            g = g.sort_values("gameDate")
-            ax.plot(
-                g["gameDate"], 
-                g["GSAx"], 
-                marker="o", 
-                linewidth=2, 
-                label=label
-            )
-
-    plot_trend(goalie1, selected_goalie)
+    # Aggregate GSAx by season for each goalie
+    g1_season = (
+        goalie1.groupby("season", as_index=False)["GSAx"]
+        .sum()
+        .rename(columns={"GSAx": "GSAx_" + selected_goalie})
+    )
 
     if goalie2 is not None:
-        plot_trend(goalie2, selected_goalie_2)
+        g2_season = (
+            goalie2.groupby("season", as_index=False)["GSAx"]
+            .sum()
+            .rename(columns={"GSAx": "GSAx_" + selected_goalie_2})
+        )
 
-    ax.axhline(0, linestyle="--", color="gray")
-    ax.set_ylabel("GSAx (Goals Saved Above Expected)")
-    ax.grid(True, alpha=0.3)
-    ax.legend()
+        # Outer join on season so we can compare across all seasons
+        season_df = pd.merge(g1_season, g2_season, on="season", how="outer").fillna(0)
+    else:
+        season_df = g1_season.copy()
 
-    st.pyplot(fig)
+    # If nothing to show, bail gracefully
+    if season_df.empty:
+        st.warning("No seasonal GSAx data available for these filters.")
+    else:
+        # Sort seasons
+        season_df = season_df.sort_values("season")
+
+        fig, ax = plt.subplots(figsize=(10, 5))
+
+        seasons = season_df["season"].astype(str).tolist()
+        x = range(len(seasons))
+        width = 0.35
+
+        # Bars for goalie 1
+        ax.bar(
+            [i - width/2 for i in x],
+            season_df["GSAx_" + selected_goalie],
+            width=width,
+            label=selected_goalie,
+        )
+
+        # Bars for goalie 2 (if selected)
+        if goalie2 is not None:
+            ax.bar(
+                [i + width/2 for i in x],
+                season_df["GSAx_" + selected_goalie_2],
+                width=width,
+                label=selected_goalie_2,
+            )
+
+        ax.axhline(0, linestyle="--", color="gray", linewidth=1)
+        ax.set_xticks(list(x))
+        ax.set_xticklabels(seasons, rotation=0)
+        ax.set_ylabel("Total GSAx (per season)")
+        ax.set_xlabel("Season")
+        ax.set_title("Goals Saved Above Expected by Season")
+        ax.grid(True, alpha=0.3)
+        ax.legend()
+
+        st.pyplot(fig)
+
 
 
     # ---------------------- XG vs Goals Scatter ----------------------
