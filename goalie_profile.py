@@ -136,14 +136,21 @@ def goalie_profile_page():
         st.warning("Not enough data for selected filters.")
         return
 
-    # ---------------------- TEAM AVERAGE BENCHMARK ----------------------
+        # ---------------------- TEAM AVERAGE BENCHMARK ----------------------
+    team_total_shots = df["xOnGoal"].sum()
+    team_total_goals = df["goals"].sum()
+
     team_avg = pd.DataFrame({
-        "Save %": [df["goals"].sum() / df["xOnGoal"].sum()],
-        "High Danger Save %": [(1 - df["highDangerGoals"].sum() / df["highDangerShots"].sum())],
-        "Medium Danger Save %": [(1 - df["mediumDangerGoals"].sum() / df["mediumDangerShots"].sum())],
-        "Low Danger Save %": [(1 - df["lowDangerGoals"].sum() / df["lowDangerShots"].sum())],
-        "GSAx/Game": [(df["xGoals"].sum() - df["goals"].sum()) / (df["games_played"].max() * len(df["name"].unique()))]
+        "Save %": [1 - (team_total_goals / team_total_shots)],
+        "High Danger Save %": [1 - (df["highDangerGoals"].sum() / max(df["highDangerShots"].sum(), 1))],
+        "Medium Danger Save %": [1 - (df["mediumDangerGoals"].sum() / max(df["mediumDangerShots"].sum(), 1))],
+        "Low Danger Save %": [1 - (df["lowDangerGoals"].sum() / max(df["lowDangerShots"].sum(), 1))],
+        "GSAx/Game": [
+            (df["xGoals"].sum() - df["goals"].sum())
+            / max(df["games_played"].max(), 1)
+        ]
     })
+
 
     # ---------------------- RADAR VISUAL ----------------------
     st.subheader("🕷️ Radar Skill Visualization")
