@@ -82,27 +82,31 @@ def goalie_analytics_page():
         return
 
     # ---------------------- SUMMARY TABLE(S) ----------------------
-    def generate_summary(g):
+    def generate_summary(g: pd.DataFrame):
+        # Avoid counting the same games multiple times across situations.
+        # For each season, take the max games_played (they're repeated per situation).
+        if "games_played" in g.columns:
+            games_by_season = g.groupby("season")["games_played"].max()
+            total_games_played = int(games_by_season.sum())
+        else:
+            total_games_played = None
+
+        shots_faced = g["xOnGoal"].sum()
+        goals_allowed = g["goals"].sum()
+        xga_total = g["xGoals"].sum()
+        gsax_total = g["GSAx"].sum()
+
+        save_pct = 1 - (goals_allowed / shots_faced) if shots_faced > 0 else float("nan")
+
         return {
-            "Games Played": g["games_played"].sum(),
-            "Shots Faced": g["xOnGoal"].sum(),
-            "Goals Allowed": g["goals"].sum(),
-            "Expected Goals (xGA)": round(g["xGoals"].sum(), 2),
-            "Save %": f"{(1 - g['goals'].sum() / g['xOnGoal'].sum()):.3f}",
-            "GSAx Total": round(g['GSAx'].sum(), 2),
+            "Games Played": total_games_played,
+            "Shots Faced": int(shots_faced),
+            "Goals Allowed": int(goals_allowed),
+            "Expected Goals (xGA)": round(xga_total, 2),
+            "Save %": f"{save_pct:.3f}" if shots_faced > 0 else "N/A",
+            "GSAx Total": round(gsax_total, 2),
         }
 
-    st.subheader("📊 Summary Statistics")
-
-    if mode == "Single Goalie View":
-        st.dataframe(pd.DataFrame(generate_summary(goalie1), index=[0]))
-
-    else:
-        comparison_df = pd.DataFrame(
-            [generate_summary(goalie1), generate_summary(goalie2)],
-            index=[selected_goalie, selected_goalie_2]
-        )
-        st.dataframe(comparison_df)
 
     # ---------------------- GSAx BY SEASON (REPLACES "GSAx Over Time") ----------------------
     st.subheader("📊 GSAx by Season")
