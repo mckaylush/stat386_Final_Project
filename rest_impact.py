@@ -8,6 +8,35 @@ import matplotlib.pyplot as plt
 @st.cache_data
 def load_rest_data(path: str = "all_teams.csv") -> pd.DataFrame:
     df = pd.read_csv(path)
+# --------- TEAM NAME NORMALIZATION ---------
+    team_map = {
+        "N.J": "NJD",
+        "NJ": "NJD",
+        "N.J.": "NJD",
+        
+        "S.J": "SJS",
+        "SJ": "SJS",
+        "S.J.": "SJS",
+
+        "T.B": "TBL",
+        "TB": "TBL",
+        "T.B.": "TBL",
+
+        "L.A": "LAK",
+        "LA": "LAK",
+        "L.A.": "LAK",
+
+        "M.T.L": "MTL",
+        "MON": "MTL",
+
+        "N.Y.I": "NYI",
+        "N.Y.R": "NYR",
+        "NY": "NYR"  # rare case, but safe
+
+        # Add any weird ones if they appear in your dataset
+    }
+
+    df["playerTeam"] = df["playerTeam"].replace(team_map)
 
     # Parse dates
     df["gameDate"] = pd.to_datetime(df["gameDate"], format="%Y%m%d", errors="coerce")
@@ -50,6 +79,7 @@ def load_rest_data(path: str = "all_teams.csv") -> pd.DataFrame:
     df = df.dropna(subset=["rest_bucket"])
 
     return df
+
 
 
 # ---------------------- SUMMARY HELPER ----------------------
