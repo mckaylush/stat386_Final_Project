@@ -194,6 +194,45 @@ def goalie_profile_page():
 
     st.pyplot(fig)
 
+    # ---------------------- INTERPRETATION SECTION ----------------------
+    st.subheader("🧠 Automated Interpretation")
+
+    def generate_insight(name, row, league):
+        text = f"**{name}:**\n"
+        diffs = (row - league) * 100  # convert to %
+        
+        strength = diffs.sort_values(ascending=False)
+
+        best = strength.index[0]
+        worst = strength.index[-1]
+
+        text += f"- Best category: **{best} (+{strength[best]:.2f}% vs league)**\n"
+        text += f"- Weakest category: **{worst} ({strength[worst]:.2f}% vs league)**\n\n"
+
+        return text
+
+
+    league_row = radar_df.iloc[2]
+
+    insight_text = ""
+
+    insight_text += generate_insight(goalie1, radar_df.iloc[0], league_row)
+    insight_text += generate_insight(goalie2, radar_df.iloc[1], league_row)
+
+    # Comparison sentence
+    diff = (radar_df.iloc[0] - radar_df.iloc[1]).mean()
+
+    if abs(diff) < 1:
+        comparison = "These goalies perform **very similarly overall.**"
+    elif diff > 0:
+        comparison = f"**{goalie1}** shows slightly stronger overall consistency compared to **{goalie2}.**"
+    else:
+        comparison = f"**{goalie2}** demonstrates slightly stronger performance trends than **{goalie1}.**"
+
+    st.write(insight_text)
+    st.info(comparison)
+
+
     # ---------------------- METRICS TABLE ----------------------
     st.subheader("📋 Metrics Table")
 
