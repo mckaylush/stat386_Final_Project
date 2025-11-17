@@ -232,6 +232,33 @@ def goalie_profile_page():
     st.write(insight_text)
     st.info(comparison)
 
+    # ---------------------- HORIZONTAL BAR COMPARISON ----------------------
+    st.subheader("📊 Side-by-Side Metric Comparison")
+
+    comparison_df = radar_df.copy()
+
+    # Convert to 0–100 scale for cleaner visualization
+    bar_df = comparison_df.copy() * 100
+    bar_df.columns = [col + " (%)" for col in bar_df.columns]
+
+    fig_bar, ax_bar = plt.subplots(figsize=(10, 6))
+
+    y_positions = np.arange(len(bar_df.columns))
+    height = 0.25  # spacing of bars
+
+    ax_bar.barh(y_positions - height, bar_df.iloc[0], height, label=goalie1, color="#1f77b4", alpha=0.8)
+    ax_bar.barh(y_positions, bar_df.iloc[1], height, label=goalie2, color="#d62728", alpha=0.8)
+    ax_bar.barh(y_positions + height, bar_df.iloc[2], height, label="League Avg", color="#2ca02c", alpha=0.6)
+
+    ax_bar.set_yticks(y_positions)
+    ax_bar.set_yticklabels(bar_df.columns)
+    ax_bar.set_xlabel("Performance (Scaled 0-100)")
+    ax_bar.set_title("Metric-by-Metric Performance Comparison")
+    ax_bar.grid(axis="x", alpha=0.3)
+    ax_bar.legend()
+
+    st.pyplot(fig_bar)
+
 
     # ---------------------- METRICS TABLE ----------------------
     st.subheader("📋 Metrics Table")
