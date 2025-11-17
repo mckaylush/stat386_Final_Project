@@ -156,7 +156,6 @@ def goalie_profile_page():
         "High Danger Save %": 1 - (hd_goals_all / max(hd_shots_all, 1)),
         "Medium Danger Save %": 1 - (md_goals_all / max(md_shots_all, 1)),
         "Low Danger Save %": 1 - (ld_goals_all / max(ld_shots_all, 1)),
-        "GSAx/Game": (filtered_df["xGoals"].sum() - total_goals_all) / league_games,
     })
 
     metrics_df = pd.DataFrame(
