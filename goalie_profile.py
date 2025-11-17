@@ -8,7 +8,6 @@ from reportlab.pdfgen import canvas
 from reportlab.lib.utils import ImageReader
 
 
-
 # ---------------------- LOAD DATA ----------------------
 @st.cache_data
 def load_goalie_data(path="data/goalies_allseasons.csv"):
@@ -23,8 +22,8 @@ def load_goalie_data(path="data/goalies_allseasons.csv"):
 # ---------------------- NORMALIZATION FUNCTION ----------------------
 def normalize(series):
     """Scales metric to 0–100 range for radar comparison."""
-    if series.nunique() == 1:  # avoid division by zero
-        return series * 0 + 50
+    if series.nunique() <= 1 or series.isna().all():
+        return pd.Series([50] * len(series), index=series.index)
     return (series - series.min()) / (series.max() - series.min()) * 100
 
 
@@ -48,25 +47,15 @@ def export_pdf(goalie_name, comparison_name, metrics_df, img_bytes):
     pdf.drawString(50, 370, "Metric Values:")
 
     pdf.setFont("Helvetica", 10)
+    y = 350
 
-    # Write table values
-    y = 360
-    pdf.setFont("Helvetica", 10)
+    for idx, row in metrics_df.iterrows():
+        values = [f"{col}: {row[col]:.3f}" if isinstance(row[col], float) else f"{col}: {row[col]}"
+                  for col in metrics_df.columns]
 
-    for i, row in metrics_df.iterrows():
-        row_values = []
+        text = f"{idx}:  " + "  |  ".join(values)
 
-        for col in metrics_df.columns:
-            val = row.get(col, "N/A")  # SAFE lookup
-
-            if isinstance(val, (int, float)):
-                row_values.append(f"{col}: {val:.3f}")
-            else:
-                row_values.append(f"{col}: {val}")
-
-        text = f"{i}:  " + "  |  ".join(row_values)
-
-        # wrap long lines
+        # Wrap long lines
         while len(text) > 95:
             pdf.drawString(50, y, text[:95])
             text = text[95:]
@@ -75,13 +64,10 @@ def export_pdf(goalie_name, comparison_name, metrics_df, img_bytes):
         pdf.drawString(50, y, text)
         y -= 15
 
-
-
-
     pdf.save()
     buffer.seek(0)
-
     return buffer
+
 
 
 # ---------------------- PAGE FUNCTION ----------------------
@@ -104,6 +90,8 @@ def goalie_profile_page():
     goalie1 = st.sidebar.selectbox("Primary Goalie", goalies)
     goalie2 = st.sidebar.selectbox("Compare Against", [g for g in goalies if g != goalie1])
 
+
+
     # ---------------------- FILTERING FUNCTION ----------------------
     def filter_goalie(name):
         g = df[df["name"] == name].copy()
@@ -117,20 +105,26 @@ def goalie_profile_page():
         if g.empty:
             return None
 
-        # Performance metrics
-        g["save_pct"] = 1 - (g["goals"] / g["xOnGoal"])
-        g["GSAx"] = g["xGoals"] - g["goals"]
-        g["highDangerSavePct"] = 1 - (g["highDangerGoals"] / g["highDangerShots"].replace(0, np.nan))
-        g["mediumDangerSavePct"] = 1 - (g["mediumDangerGoals"] / g["mediumDangerShots"].replace(0, np.nan))
-        g["lowDangerSavePct"] = 1 - (g["lowDangerGoals"] / g["lowDangerShots"].replace(0, np.nan))
+        # Aggregated values
+        total_shots = g["unblocked_shot_attempts"].sum()
+        total_exp_shots = g["xOnGoal"].sum()
+        total_goals = g["goals"].sum()
+
+        # Danger splits
+        hd_shots, hd_goals = g["highDangerShots"].sum(), g["highDangerGoals"].sum()
+        md_shots, md_goals = g["mediumDangerShots"].sum(), g["mediumDangerGoals"].sum()
+        ld_shots, ld_goals = g["lowDangerShots"].sum(), g["lowDangerGoals"].sum()
 
         return pd.DataFrame({
-            "Save %": [g["save_pct"].mean()],
-            "High Danger Save %": [g["highDangerSavePct"].mean()],
-            "Medium Danger Save %": [g["mediumDangerSavePct"].mean()],
-            "Low Danger Save %": [g["lowDangerSavePct"].mean()],
-            "GSAx/Game": [g["GSAx"].sum() / max(g["games_played"].max(), 1)]
+            "Save % (Actual)": [1 - (total_goals / max(total_shots, 1))],
+            "Save % (Expected)": [1 - (total_goals / max(total_exp_shots, 1))],
+            "High Danger Save %": [1 - (hd_goals / max(hd_shots, 1))],
+            "Medium Danger Save %": [1 - (md_goals / max(md_shots, 1))],
+            "Low Danger Save %": [1 - (ld_goals / max(ld_shots, 1))],
+            "GSAx/Game": [(g["xGoals"].sum() - g["goals"].sum()) / max(g["games_played"].max(), 1)]
         })
+
+
 
     g1 = filter_goalie(goalie1)
     g2 = filter_goalie(goalie2)
@@ -139,19 +133,15 @@ def goalie_profile_page():
         st.warning("Not enough data for selected filters.")
         return
 
-        # ---------------------- TEAM AVERAGE BENCHMARK ----------------------
-    team_total_shots = df["xOnGoal"].sum()
-    team_total_goals = df["goals"].sum()
 
+    # ---------------------- LEAGUE AVERAGE BASELINE ----------------------
     team_avg = pd.DataFrame({
-        "Save %": [1 - (team_total_goals / team_total_shots)],
+        "Save % (Actual)": [1 - (df["goals"].sum() / max(df["unblocked_shot_attempts"].sum(), 1))],
+        "Save % (Expected)": [1 - (df["goals"].sum() / max(df["xOnGoal"].sum(), 1))],
         "High Danger Save %": [1 - (df["highDangerGoals"].sum() / max(df["highDangerShots"].sum(), 1))],
         "Medium Danger Save %": [1 - (df["mediumDangerGoals"].sum() / max(df["mediumDangerShots"].sum(), 1))],
         "Low Danger Save %": [1 - (df["lowDangerGoals"].sum() / max(df["lowDangerShots"].sum(), 1))],
-        "GSAx/Game": [
-            (df["xGoals"].sum() - df["goals"].sum())
-            / max(df["games_played"].max(), 1)
-        ]
+        "GSAx/Game": [(df["xGoals"].sum() - df["goals"].sum()) / max(df["games_played"].max(), 1)]
     })
 
 
@@ -159,45 +149,44 @@ def goalie_profile_page():
     st.subheader("🕷️ Radar Skill Visualization")
 
     metrics = list(g1.columns)
+
+    values_df = pd.concat([g1, g2, team_avg])
+    normalized = values_df.apply(normalize)
+
     angles = np.linspace(0, 2 * np.pi, len(metrics), endpoint=False).tolist()
     angles += angles[:1]
 
-    combined = pd.concat([g1, g2, team_avg])
-
-    values1 = normalize(g1.iloc[0]).tolist() + [normalize(g1.iloc[0]).tolist()[0]]
-    values2 = normalize(g2.iloc[0]).tolist() + [normalize(g2.iloc[0]).tolist()[0]]
-    values_avg = normalize(team_avg.iloc[0]).tolist() + [normalize(team_avg.iloc[0]).tolist()[0]]
-
     fig, ax = plt.subplots(figsize=(8, 8), subplot_kw=dict(polar=True))
 
-    ax.plot(angles, values1, linewidth=2, label=goalie1, color="#1f77b4")
-    ax.fill(angles, values1, alpha=0.25, color="#1f77b4")
+    def plot(values, label, color):
+        v = values.tolist() + [values.tolist()[0]]
+        ax.plot(angles, v, label=label, linewidth=2, color=color)
+        ax.fill(angles, v, alpha=0.25, color=color)
 
-    ax.plot(angles, values2, linewidth=2, label=goalie2, color="#d62728")
-    ax.fill(angles, values2, alpha=0.25, color="#d62728")
-
-    # Benchmark line
-    ax.plot(angles, values_avg, linewidth=2, linestyle="--", label="NHL Avg", color="#2ca02c")
+    plot(normalized.iloc[0], goalie1, "#1f77b4")
+    plot(normalized.iloc[1], goalie2, "#d62728")
+    plot(normalized.iloc[2], "League Avg", "#2ca02c")
 
     ax.set_xticks(angles[:-1])
     ax.set_xticklabels(metrics)
     ax.set_ylim(0, 100)
     ax.legend(loc="upper right", bbox_to_anchor=(1.3, 1.1))
 
-    # Save image bytes for PDF
     img_buffer = BytesIO()
     fig.savefig(img_buffer, format="png")
     img_buffer.seek(0)
 
     st.pyplot(fig)
 
-    # ---------------------- METRIC TABLE ----------------------
+
+    # ---------------------- TABLE ----------------------
     st.subheader("📋 Metrics Table")
-    output_df = pd.concat([g1, g2, team_avg], axis=0)
+    output_df = values_df.copy()
     output_df.index = [goalie1, goalie2, "League Avg"]
     st.dataframe(output_df.style.format("{:.3f}"))
 
-    # ---------------------- PDF DOWNLOAD ----------------------
+
+    # ---------------------- PDF ----------------------
     st.subheader("📄 Export Comparison Report")
 
     if st.button("📥 Download PDF"):
