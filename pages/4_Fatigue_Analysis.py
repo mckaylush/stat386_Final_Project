@@ -12,120 +12,120 @@ def load_goalie_data(path="data/goalies_allseasons.csv"):
 
 
 # ---------------------- PAGE FUNCTION ----------------------
-def goalie_fatigue_page():
 
-    st.title("🥵 Goalie Fatigue Explorer (Season-Based)")
 
-    df = load_goalie_data()
+st.title("🥵 Goalie Fatigue Explorer (Season-Based)")
 
-    # -------- SIDEBAR --------
-    st.sidebar.header("Filters")
+df = load_goalie_data()
 
-    mode = st.sidebar.radio("Mode", ["Single Goalie View", "Compare Two Goalies"])
+# -------- SIDEBAR --------
+st.sidebar.header("Filters")
 
-    goalies = sorted(df["name"].unique())
-    seasons = sorted(df["season"].unique())
-    situations = sorted(df["situation"].unique())
+mode = st.sidebar.radio("Mode", ["Single Goalie View", "Compare Two Goalies"])
 
-    selected_goalie = st.sidebar.selectbox("Primary Goalie", goalies)
-    selected_season = st.sidebar.selectbox("Season", ["All Seasons"] + seasons)
-    selected_situation = st.sidebar.selectbox("Game Situation", ["All"] + situations)
+goalies = sorted(df["name"].unique())
+seasons = sorted(df["season"].unique())
+situations = sorted(df["situation"].unique())
 
-    if mode == "Compare Two Goalies":
-        selected_goalie_2 = st.sidebar.selectbox("Compare With", [g for g in goalies if g != selected_goalie])
+selected_goalie = st.sidebar.selectbox("Primary Goalie", goalies)
+selected_season = st.sidebar.selectbox("Season", ["All Seasons"] + seasons)
+selected_situation = st.sidebar.selectbox("Game Situation", ["All"] + situations)
+
+if mode == "Compare Two Goalies":
+    selected_goalie_2 = st.sidebar.selectbox("Compare With", [g for g in goalies if g != selected_goalie])
+else:
+    selected_goalie_2 = None
+
+# -------- FILTERING --------
+def filter_goalie(name):
+    g = df[df["name"] == name].copy()
+
+    if selected_season != "All Seasons":
+        g = g[g["season"] == selected_season]
+
+    if selected_situation != "All":
+        g = g[g["situation"] == selected_situation]
+
+    return g
+
+g1 = filter_goalie(selected_goalie)
+g2 = filter_goalie(selected_goalie_2) if selected_goalie_2 else None
+
+if g1.empty:
+    st.warning("⚠ No matching data found for this goalie/season filter.")
+    st.stop()
+
+# -------- COMPUTE METRICS --------
+
+# Approximate game segments (season quarters)
+def segment(df):
+    df = df.sort_values("games_played").reset_index(drop=True)
+
+    n = len(df)
+
+    if n >= 12:
+        # Full quartiles
+        df["segment"] = pd.qcut(df.index, q=4, labels=["Q1", "Q2", "Q3", "Q4"])
+    elif n >= 6:
+        # Use halves if not enough data for 4 groups
+        df["segment"] = pd.qcut(df.index, q=2, labels=["Early Season", "Late Season"])
     else:
-        selected_goalie_2 = None
+        # Not enough records → single bucket
+        df["segment"] = "All Games"
 
-    # -------- FILTERING --------
-    def filter_goalie(name):
-        g = df[df["name"] == name].copy()
+    df["save_pct"] = 1 - (df["goals"] / df["xOnGoal"])
+    df["GSAx"] = df["xGoals"] - df["goals"]
 
-        if selected_season != "All Seasons":
-            g = g[g["season"] == selected_season]
-
-        if selected_situation != "All":
-            g = g[g["situation"] == selected_situation]
-
-        return g
-
-    g1 = filter_goalie(selected_goalie)
-    g2 = filter_goalie(selected_goalie_2) if selected_goalie_2 else None
-
-    if g1.empty:
-        st.warning("⚠ No matching data found for this goalie/season filter.")
-        return
-
-    # -------- COMPUTE METRICS --------
-
-    # Approximate game segments (season quarters)
-    def segment(df):
-        df = df.sort_values("games_played").reset_index(drop=True)
-
-        n = len(df)
-
-        if n >= 12:
-            # Full quartiles
-            df["segment"] = pd.qcut(df.index, q=4, labels=["Q1", "Q2", "Q3", "Q4"])
-        elif n >= 6:
-            # Use halves if not enough data for 4 groups
-            df["segment"] = pd.qcut(df.index, q=2, labels=["Early Season", "Late Season"])
-        else:
-            # Not enough records → single bucket
-            df["segment"] = "All Games"
-
-        df["save_pct"] = 1 - (df["goals"] / df["xOnGoal"])
-        df["GSAx"] = df["xGoals"] - df["goals"]
-
-        return df
+    return df
 
 
-    g1 = segment(g1)
-    if g2 is not None:
-        g2 = segment(g2)
+g1 = segment(g1)
+if g2 is not None:
+    g2 = segment(g2)
 
-    # -------- DISPLAY SUMMARY --------
-    st.subheader("📊 Fatigue Pattern Summary")
+# -------- DISPLAY SUMMARY --------
+st.subheader("📊 Fatigue Pattern Summary")
 
-    def summary(df):
-        return df.groupby("segment")[["save_pct", "GSAx"]].mean().round(3)
+def summary(df):
+    return df.groupby("segment")[["save_pct", "GSAx"]].mean().round(3)
 
-    st.write(f"📌 **{selected_goalie} Trend:**")
-    st.dataframe(summary(g1))
+st.write(f"📌 **{selected_goalie} Trend:**")
+st.dataframe(summary(g1))
 
-    if g2 is not None:
-        st.write(f"📌 **{selected_goalie_2} Trend:**")
-        st.dataframe(summary(g2))
+if g2 is not None:
+    st.write(f"📌 **{selected_goalie_2} Trend:**")
+    st.dataframe(summary(g2))
 
-    # -------- CHARTS --------
+# -------- CHARTS --------
 
-    st.subheader("📈 Save Percentage Decay Curve")
+st.subheader("📈 Save Percentage Decay Curve")
 
-    fig1, ax1 = plt.subplots(figsize=(10, 5))
-    ax1.plot(summary(g1).index, summary(g1)["save_pct"], marker="o", label=selected_goalie)
+fig1, ax1 = plt.subplots(figsize=(10, 5))
+ax1.plot(summary(g1).index, summary(g1)["save_pct"], marker="o", label=selected_goalie)
 
-    if g2 is not None:
-        ax1.plot(summary(g2).index, summary(g2)["save_pct"], marker="o", label=selected_goalie_2)
+if g2 is not None:
+    ax1.plot(summary(g2).index, summary(g2)["save_pct"], marker="o", label=selected_goalie_2)
 
-    ax1.set_ylabel("Save %")
-    ax1.set_xlabel("Season Segment")
-    ax1.set_title("Does Performance Drop Over the Season?")
-    ax1.grid(True, alpha=0.3)
-    ax1.legend()
-    st.pyplot(fig1)
+ax1.set_ylabel("Save %")
+ax1.set_xlabel("Season Segment")
+ax1.set_title("Does Performance Drop Over the Season?")
+ax1.grid(True, alpha=0.3)
+ax1.legend()
+st.pyplot(fig1)
 
-    st.subheader("📉 GSAx Trend Across Season")
+st.subheader("📉 GSAx Trend Across Season")
 
-    fig2, ax2 = plt.subplots(figsize=(10, 5))
-    ax2.plot(summary(g1).index, summary(g1)["GSAx"], marker="o", label=selected_goalie)
+fig2, ax2 = plt.subplots(figsize=(10, 5))
+ax2.plot(summary(g1).index, summary(g1)["GSAx"], marker="o", label=selected_goalie)
 
-    if g2 is not None:
-        ax2.plot(summary(g2).index, summary(g2)["GSAx"], marker="o", label=selected_goalie_2)
+if g2 is not None:
+    ax2.plot(summary(g2).index, summary(g2)["GSAx"], marker="o", label=selected_goalie_2)
 
-    ax2.set_ylabel("GSAx")
-    ax2.set_xlabel("Season Segment")
-    ax2.grid(True, alpha=0.3)
-    ax2.legend()
-    st.pyplot(fig2)
+ax2.set_ylabel("GSAx")
+ax2.set_xlabel("Season Segment")
+ax2.grid(True, alpha=0.3)
+ax2.legend()
+st.pyplot(fig2)
 
-    st.markdown("---")
-    st.caption("Future upgrade: real fatigue using per-game rest, workload, and schedule tracking.")
+st.markdown("---")
+st.caption("Future upgrade: real fatigue using per-game rest, workload, and schedule tracking.")

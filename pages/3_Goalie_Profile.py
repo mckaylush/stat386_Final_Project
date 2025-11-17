@@ -61,171 +61,171 @@ def export_pdf(goalie1, goalie2, metrics_df, img_bytes):
 
 
 # ---------------------- PAGE FUNCTION ----------------------
-def goalie_profile_page():
-    st.title("🥅 Goalie Skill Comparison")
 
-    df = load_goalie_data()
+st.title("🥅 Goalie Skill Comparison")
 
-    # ---------------------- SIDEBAR ----------------------
-    st.sidebar.header("Filters")
+df = load_goalie_data()
 
-    seasons = sorted(df["season"].unique())
-    situations = sorted(df["situation"].unique())
-    goalies = sorted(df["name"].unique())
+# ---------------------- SIDEBAR ----------------------
+st.sidebar.header("Filters")
 
-    season_filter = st.sidebar.selectbox("Season", ["All Seasons"] + seasons)
-    situation_filter = st.sidebar.selectbox("Situation", ["All"] + situations)
+seasons = sorted(df["season"].unique())
+situations = sorted(df["situation"].unique())
+goalies = sorted(df["name"].unique())
 
-    goalie1 = st.sidebar.selectbox("Primary Goalie", goalies)
-    goalie2 = st.sidebar.selectbox("Compare Against",
-                                   [g for g in goalies if g != goalie1])
+season_filter = st.sidebar.selectbox("Season", ["All Seasons"] + seasons)
+situation_filter = st.sidebar.selectbox("Situation", ["All"] + situations)
 
-    # Apply global filters to base df (so league avg respects filters too)
-    filtered_df = df.copy()
-    if season_filter != "All Seasons":
-        filtered_df = filtered_df[filtered_df["season"] == season_filter]
-    if situation_filter != "All":
-        filtered_df = filtered_df[filtered_df["situation"] == situation_filter]
+goalie1 = st.sidebar.selectbox("Primary Goalie", goalies)
+goalie2 = st.sidebar.selectbox("Compare Against",
+                                [g for g in goalies if g != goalie1])
 
-    # ---------------------- METRIC EXTRACTOR ----------------------
-    def extract_metrics(name: str):
-        g = filtered_df[filtered_df["name"] == name].copy()
-        if g.empty:
-            return None
+# Apply global filters to base df (so league avg respects filters too)
+filtered_df = df.copy()
+if season_filter != "All Seasons":
+    filtered_df = filtered_df[filtered_df["season"] == season_filter]
+if situation_filter != "All":
+    filtered_df = filtered_df[filtered_df["situation"] == situation_filter]
 
-        # Overall save% uses xOnGoal as shot proxy (consistent with earlier)
-        total_xOnGoal = g["xOnGoal"].sum()
-        total_goals = g["goals"].sum()
+# ---------------------- METRIC EXTRACTOR ----------------------
+def extract_metrics(name: str):
+    g = filtered_df[filtered_df["name"] == name].copy()
+    if g.empty:
+        return None
 
-        # Danger splits
-        hd_shots, hd_goals = g["highDangerShots"].sum(), g["highDangerGoals"].sum()
-        md_shots, md_goals = g["mediumDangerShots"].sum(), g["mediumDangerGoals"].sum()
-        ld_shots, ld_goals = g["lowDangerShots"].sum(), g["lowDangerGoals"].sum()
+    # Overall save% uses xOnGoal as shot proxy (consistent with earlier)
+    total_xOnGoal = g["xOnGoal"].sum()
+    total_goals = g["goals"].sum()
 
-        # Games played: sum max per season (avoid double-counting situations)
-        games_per_season = g.groupby("season")["games_played"].max()
-        games_total = games_per_season.sum() if not games_per_season.empty else 1
+    # Danger splits
+    hd_shots, hd_goals = g["highDangerShots"].sum(), g["highDangerGoals"].sum()
+    md_shots, md_goals = g["mediumDangerShots"].sum(), g["mediumDangerGoals"].sum()
+    ld_shots, ld_goals = g["lowDangerShots"].sum(), g["lowDangerGoals"].sum()
 
-        save_pct = 1 - (total_goals / max(total_xOnGoal, 1))
+    # Games played: sum max per season (avoid double-counting situations)
+    games_per_season = g.groupby("season")["games_played"].max()
+    games_total = games_per_season.sum() if not games_per_season.empty else 1
 
-        hd_sv = 1 - (hd_goals / max(hd_shots, 1))
-        md_sv = 1 - (md_goals / max(md_shots, 1))
-        ld_sv = 1 - (ld_goals / max(ld_shots, 1))
+    save_pct = 1 - (total_goals / max(total_xOnGoal, 1))
 
-        gsax_game = (g["xGoals"].sum() - total_goals) / max(games_total, 1)
+    hd_sv = 1 - (hd_goals / max(hd_shots, 1))
+    md_sv = 1 - (md_goals / max(md_shots, 1))
+    ld_sv = 1 - (ld_goals / max(ld_shots, 1))
 
-        return pd.Series({
-            "Save %": save_pct,
-            "High Danger Save %": hd_sv,
-            "Medium Danger Save %": md_sv,
-            "Low Danger Save %": ld_sv,
-        })
+    gsax_game = (g["xGoals"].sum() - total_goals) / max(games_total, 1)
 
-    g1 = extract_metrics(goalie1)
-    g2 = extract_metrics(goalie2)
-
-    if g1 is None or g2 is None:
-        st.warning("Not enough data for the selected filters.")
-        return
-
-    # ---------------------- LEAGUE AVERAGE (RESPECTS FILTERS) ----------------------
-    total_xOnGoal_all = filtered_df["xOnGoal"].sum()
-    total_goals_all = filtered_df["goals"].sum()
-
-    hd_shots_all, hd_goals_all = (
-        filtered_df["highDangerShots"].sum(),
-        filtered_df["highDangerGoals"].sum(),
-    )
-    md_shots_all, md_goals_all = (
-        filtered_df["mediumDangerShots"].sum(),
-        filtered_df["mediumDangerGoals"].sum(),
-    )
-    ld_shots_all, ld_goals_all = (
-        filtered_df["lowDangerShots"].sum(),
-        filtered_df["lowDangerGoals"].sum(),
-    )
-
-    league_games = (
-        filtered_df.groupby(["name", "season"])["games_played"].max().sum()
-    )
-    league_games = league_games if league_games > 0 else 1
-
-    league_series = pd.Series({
-        "Save %": 1 - (total_goals_all / max(total_xOnGoal_all, 1)),
-        "High Danger Save %": 1 - (hd_goals_all / max(hd_shots_all, 1)),
-        "Medium Danger Save %": 1 - (md_goals_all / max(md_shots_all, 1)),
-        "Low Danger Save %": 1 - (ld_goals_all / max(ld_shots_all, 1)),
+    return pd.Series({
+        "Save %": save_pct,
+        "High Danger Save %": hd_sv,
+        "Medium Danger Save %": md_sv,
+        "Low Danger Save %": ld_sv,
     })
 
-    metrics_df = pd.DataFrame(
-        [g1, g2, league_series],
-        index=[goalie1, goalie2, "League Avg"]
+g1 = extract_metrics(goalie1)
+g2 = extract_metrics(goalie2)
+
+if g1 is None or g2 is None:
+    st.warning("Not enough data for the selected filters.")
+    st.stop()
+
+# ---------------------- LEAGUE AVERAGE (RESPECTS FILTERS) ----------------------
+total_xOnGoal_all = filtered_df["xOnGoal"].sum()
+total_goals_all = filtered_df["goals"].sum()
+
+hd_shots_all, hd_goals_all = (
+    filtered_df["highDangerShots"].sum(),
+    filtered_df["highDangerGoals"].sum(),
+)
+md_shots_all, md_goals_all = (
+    filtered_df["mediumDangerShots"].sum(),
+    filtered_df["mediumDangerGoals"].sum(),
+)
+ld_shots_all, ld_goals_all = (
+    filtered_df["lowDangerShots"].sum(),
+    filtered_df["lowDangerGoals"].sum(),
+)
+
+league_games = (
+    filtered_df.groupby(["name", "season"])["games_played"].max().sum()
+)
+league_games = league_games if league_games > 0 else 1
+
+league_series = pd.Series({
+    "Save %": 1 - (total_goals_all / max(total_xOnGoal_all, 1)),
+    "High Danger Save %": 1 - (hd_goals_all / max(hd_shots_all, 1)),
+    "Medium Danger Save %": 1 - (md_goals_all / max(md_shots_all, 1)),
+    "Low Danger Save %": 1 - (ld_goals_all / max(ld_shots_all, 1)),
+})
+
+metrics_df = pd.DataFrame(
+    [g1, g2, league_series],
+    index=[goalie1, goalie2, "League Avg"]
+)
+
+# ---------------------- QUICK TEXT INSIGHT ----------------------
+st.subheader("🧠 Quick Insight")
+
+diff = (g1 - g2) * 100  # % difference for % metrics, scaled for readability
+# Only look at the four percentage metrics for "strength"
+perc_cols = ["Save %", "High Danger Save %", "Medium Danger Save %", "Low Danger Save %"]
+biggest = diff[perc_cols].abs().idxmax()
+
+if diff[biggest] > 0:
+    st.success(
+        f"**{goalie1}** leads most in **{biggest}** "
+        f"(about **{diff[biggest]:.2f} percentage points** better)."
+    )
+else:
+    st.success(
+        f"**{goalie2}** leads most in **{biggest}** "
+        f"(about **{abs(diff[biggest]):.2f} percentage points** better)."
     )
 
-    # ---------------------- QUICK TEXT INSIGHT ----------------------
-    st.subheader("🧠 Quick Insight")
+# ---------------------- HORIZONTAL BAR CHART ----------------------
+st.subheader("📊 Metric Comparison (Real Values)")
 
-    diff = (g1 - g2) * 100  # % difference for % metrics, scaled for readability
-    # Only look at the four percentage metrics for "strength"
-    perc_cols = ["Save %", "High Danger Save %", "Medium Danger Save %", "Low Danger Save %"]
-    biggest = diff[perc_cols].abs().idxmax()
+# For plotting: convert save% columns to 0–100, leave GSAx/Game as-is
+plot_df = metrics_df.copy()
+pct_cols = ["Save %", "High Danger Save %", "Medium Danger Save %", "Low Danger Save %"]
+plot_df[pct_cols] = plot_df[pct_cols] * 100  # convert to %
+metrics_order = plot_df.columns
 
-    if diff[biggest] > 0:
-        st.success(
-            f"**{goalie1}** leads most in **{biggest}** "
-            f"(about **{diff[biggest]:.2f} percentage points** better)."
-        )
-    else:
-        st.success(
-            f"**{goalie2}** leads most in **{biggest}** "
-            f"(about **{abs(diff[biggest]):.2f} percentage points** better)."
-        )
+fig, ax = plt.subplots(figsize=(10, 6))
 
-    # ---------------------- HORIZONTAL BAR CHART ----------------------
-    st.subheader("📊 Metric Comparison (Real Values)")
+y = np.arange(len(metrics_order))
+h = 0.25
 
-    # For plotting: convert save% columns to 0–100, leave GSAx/Game as-is
-    plot_df = metrics_df.copy()
-    pct_cols = ["Save %", "High Danger Save %", "Medium Danger Save %", "Low Danger Save %"]
-    plot_df[pct_cols] = plot_df[pct_cols] * 100  # convert to %
-    metrics_order = plot_df.columns
+ax.barh(y - h, plot_df.loc[goalie1, metrics_order], h, label=goalie1)
+ax.barh(y,     plot_df.loc[goalie2, metrics_order], h, label=goalie2)
+ax.barh(y + h, plot_df.loc["League Avg", metrics_order], h,
+        label="League Avg", alpha=0.6)
 
-    fig, ax = plt.subplots(figsize=(10, 6))
+ax.set_yticks(y)
+ax.set_yticklabels(metrics_order)
+ax.set_xlabel("Save metrics in %")
+ax.grid(axis="x", alpha=0.3)
+ax.legend()
 
-    y = np.arange(len(metrics_order))
-    h = 0.25
+st.pyplot(fig)
 
-    ax.barh(y - h, plot_df.loc[goalie1, metrics_order], h, label=goalie1)
-    ax.barh(y,     plot_df.loc[goalie2, metrics_order], h, label=goalie2)
-    ax.barh(y + h, plot_df.loc["League Avg", metrics_order], h,
-            label="League Avg", alpha=0.6)
+# Save bar chart for PDF
+img_bytes = BytesIO()
+fig.savefig(img_bytes, format="png", bbox_inches="tight")
+img_bytes.seek(0)
 
-    ax.set_yticks(y)
-    ax.set_yticklabels(metrics_order)
-    ax.set_xlabel("Save metrics in %")
-    ax.grid(axis="x", alpha=0.3)
-    ax.legend()
+# ---------------------- METRICS TABLE ----------------------
+st.subheader("📋 Metrics Table")
+st.dataframe(metrics_df.style.format("{:.3f}"))
 
-    st.pyplot(fig)
+# ---------------------- PDF DOWNLOAD ----------------------
+st.subheader("📄 Export Comparison Report")
 
-    # Save bar chart for PDF
-    img_bytes = BytesIO()
-    fig.savefig(img_bytes, format="png", bbox_inches="tight")
-    img_bytes.seek(0)
+if st.button("📥 Download PDF Report"):
+    pdf_buffer = export_pdf(goalie1, goalie2, metrics_df, img_bytes)
+    st.download_button(
+        "Download File",
+        data=pdf_buffer,
+        file_name=f"{goalie1}_vs_{goalie2}_comparison.pdf",
+    )
 
-    # ---------------------- METRICS TABLE ----------------------
-    st.subheader("📋 Metrics Table")
-    st.dataframe(metrics_df.style.format("{:.3f}"))
-
-    # ---------------------- PDF DOWNLOAD ----------------------
-    st.subheader("📄 Export Comparison Report")
-
-    if st.button("📥 Download PDF Report"):
-        pdf_buffer = export_pdf(goalie1, goalie2, metrics_df, img_bytes)
-        st.download_button(
-            "Download File",
-            data=pdf_buffer,
-            file_name=f"{goalie1}_vs_{goalie2}_comparison.pdf",
-        )
-
-    st.caption("Data sourced from MoneyPuck.com")
+st.caption("Data sourced from MoneyPuck.com")
