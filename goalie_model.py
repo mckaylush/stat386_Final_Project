@@ -15,7 +15,7 @@ def load_data():
 
     return df
 
-def goalie_profile_page():
+def model_page():
 
     st.title("🧤 Goalie Style & Strength Profile")
 
