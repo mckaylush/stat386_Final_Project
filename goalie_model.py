@@ -1,74 +1,77 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
 
 @st.cache_data
 def load_data():
     df = pd.read_csv("data/goalies_allseasons.csv")
 
-    # compute actual save%
-    df["actual_sv"] = 1 - (df["goals"] / df["xOnGoal"])
-    df["actual_sv"] = df["actual_sv"].clip(0, 1)
-
-    # expected save% baseline (league average across similar danger levels)
-    df["expected_sv"] = 1 - (
-        (df["highDangerShots"] * 0.30 +
-         df["mediumDangerShots"] * 0.10 +
-         df["lowDangerShots"] * 0.02) 
-        / df["unblocked_shot_attempts"].clip(lower=1)
-    )
-
-    df["expected_sv"] = df["expected_sv"].clip(0, 1)
-
-    # performance delta
-    df["delta_sv"] = df["actual_sv"] - df["expected_sv"]
+    df["save_pct"] = 1 - (df["goals"] / df["xOnGoal"].clip(lower=1))
+    df["high_sv"] = 1 - (df["highDangerGoals"] / df["highDangerShots"].clip(lower=1))
+    df["med_sv"] = 1 - (df["mediumDangerGoals"] / df["mediumDangerShots"].clip(lower=1))
+    df["low_sv"] = 1 - (df["lowDangerGoals"] / df["lowDangerShots"].clip(lower=1))
+    df["GSAx"] = df["xGoals"] - df["goals"]
+    df["GSAx_game"] = df["GSAx"] / df["games_played"].clip(lower=1)
 
     return df
 
+def goalie_profile_page():
 
-def model_page():
-    st.title("🧤 Goalie Expected vs Actual Performance")
+    st.title("🧤 Goalie Style & Strength Profile")
 
     df = load_data()
 
     goalies = sorted(df["name"].unique())
     selected = st.selectbox("Select a Goalie", goalies)
 
-    g = df[df["name"] == selected].copy()
+    g = df[df["name"] == selected]
 
-    if g.empty:
-        st.warning("No data available.")
-        return
+    # Compute averages for goalie vs league
+    metrics = ["save_pct", "high_sv", "med_sv", "low_sv", "GSAx_game"]
 
-    # Aggregate by season
-    season_summary = g.groupby("season")[["actual_sv", "expected_sv", "delta_sv"]].mean()
+    goalie_avg = g[metrics].mean()
+    league_avg = df[metrics].mean()
 
-    st.subheader(f"📈 Seasonal Performance: {selected}")
+    # Compute z-scores
+    stdev = df[metrics].std()
+    z = (goalie_avg - league_avg) / stdev
 
-    fig, ax = plt.subplots(figsize=(10,5))
-    ax.plot(season_summary.index, season_summary["actual_sv"], marker="o", label="Actual Save %")
-    ax.plot(season_summary.index, season_summary["expected_sv"], marker="o", label="Expected Save %", linestyle="--")
-    ax.axhline(season_summary["expected_sv"].mean(), color="gray", linestyle=":", label="League Baseline")
-    ax.set_ylabel("Save %")
-    ax.set_ylim(0.85, 1.0)
-    ax.grid(alpha=0.3)
-    ax.legend()
+    result_df = pd.DataFrame({"Metric": metrics, "Value": goalie_avg.values, "Z-Score": z.values})
+    result_df["Value"] = result_df["Value"].round(3)
+    result_df["Z-Score"] = result_df["Z-Score"].round(2)
 
-    st.pyplot(fig)
+    st.subheader("🔍 Performance Relative to League")
+    st.dataframe(result_df.set_index("Metric"))
 
-    # 📊 Table
-    st.subheader("📊 Numbers by Season")
-    st.dataframe(season_summary.style.format("{:.3f}"))
+    # Classification rules
+    st.subheader("🧠 Style Interpretation")
 
-    # Interpretation
-    avg_delta = season_summary["delta_sv"].mean()
+    style = ""
 
-    st.subheader("🧠 Interpretation")
+    if z["high_sv"] > 0.7:
+        style += "🧱 **High-Danger Specialist:** Excellent in traffic and breakaways.\n\n"
 
-    if avg_delta > 0.010:
-        st.success(f"🔥 {selected} consistently **outperformed expectations** (+{avg_delta:.3f}).")
-    elif avg_delta < -0.010:
-        st.error(f"❄️ {selected} performed **below expected level** ({avg_delta:.3f}).")
-    else:
-        st.info(f"⚖️ {selected} performed **very close to expected level** ({avg_delta:.3f}).")
+    if z["low_sv"] < -0.6:
+        style += "🥅 **Soft Goal Risk:** Below average on low-danger shots.\n\n"
+
+    if z["GSAx_game"] > 0.6:
+        style += "🔥 **Game Stealer:** Frequently saves more than expected.\n\n"
+
+    if abs(z["save_pct"]) < 0.2:
+        style += "⚖️ **Steady and Predictable:** League-average outcomes but low volatility.\n\n"
+
+    if z["save_pct"] > 0.6 and z["high_sv"] > 0.6 and z["low_sv"] > 0.6:
+        style = "🏆 **Elite All-Around Performer — top tier across the board.**"
+
+    if style.strip() == "":
+        style = "📌 **Balanced Goalie — No single extreme strengths or weaknesses.**"
+
+    st.write(style)
+
+    # Simple bar visualization
+    st.subheader("📊 Standardized Strength Chart")
+
+    st.bar_chart(pd.DataFrame({"Z-Score": z}), use_container_width=True)
+
+
+st.caption("Data Source: MoneyPuck.com")
