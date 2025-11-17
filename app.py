@@ -1,5 +1,5 @@
 import streamlit as st
-from goalie_model import rest_impact_page
+from rest_impact import rest_impact_page
 from back_to_back import back_to_back_page
 from goalie_analytics import goalie_analytics_page
 from goalie_fatigue import goalie_fatigue_page
