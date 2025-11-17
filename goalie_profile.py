@@ -238,7 +238,7 @@ def goalie_profile_page():
     comparison_df = radar_df.copy()
 
     # Convert to 0–100 scale for cleaner visualization
-    bar_df = comparison_df.copy() * 100
+    bar_df = comparison_df.copy()
     bar_df.columns = [col + " (%)" for col in bar_df.columns]
 
     fig_bar, ax_bar = plt.subplots(figsize=(10, 6))
