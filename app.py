@@ -1,21 +1,20 @@
 import streamlit as st
-from rest_impact import rest_impact_page
-from back_to_back import back_to_back_page
-from goalie_analytics import goalie_analytics_page
-from goalie_fatigue import goalie_fatigue_page
-from goalie_profile import goalie_profile_page
 
+st.set_page_config(
+    page_title="NHL Back-to-Back Study",
+    layout="wide",
+)
 
-pages = {
-    "🏒 Team Back-to-Back Analysis": back_to_back_page,
-    "🥵 Fatigue Impact Analysis": goalie_fatigue_page,
-    "🎯 Goalie Analytics": goalie_analytics_page,
-    "🥅 Goalie Skill Chart": goalie_profile_page,
-    "⏱️ Rest Impact Dashboard": rest_impact_page,
-}
+st.title("🏒 NHL Back-to-Back Performance Study")
 
+st.write("""
+Welcome to the interactive analytics dashboard exploring whether 
+**rest impacts NHL performance.**
 
-choice = st.sidebar.radio("Navigation", list(pages.keys()))
-
-
-pages[choice]()
+Use the sidebar to navigate:
+- 📈 Team back-to-back analysis  
+- 🥅 Goalie insights  
+- ⚔️ Goalie Analytics
+- 🥵 Fatigue Analysis 
+- ⏱️ Rest Impact
+""")
