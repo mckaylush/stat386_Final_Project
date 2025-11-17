@@ -1,71 +1,56 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import train_test_split, cross_val_score
 from sklearn.ensemble import RandomForestRegressor
-from sklearn.metrics import r2_score
+from sklearn.metrics import r2_score, mean_absolute_error, mean_squared_error
+import matplotlib.pyplot as plt
 
 
-# ---------------------- DATA LOADER ----------------------
+# ---------------------- LOAD DATA ----------------------
 @st.cache_data
 def load_data():
     df = pd.read_csv("data/goalies_allseasons.csv")
 
-    # Ensure numeric columns only
     df = df.replace([np.inf, -np.inf], np.nan)
-
-    # Remove cases where xGoals = 0 (cannot compute save %)
     df = df[df["xGoals"] > 0]
 
-    # Create metric
     df["save_percent"] = 1 - (df["goals"] / df["xGoals"])
-
-    # Clip to valid range
     df["save_percent"] = df["save_percent"].clip(0, 1)
 
-    # Drop anything still bad
-    df = df.dropna(subset=["save_percent"])
-
-    return df
+    return df.dropna(subset=["save_percent"])
 
 
-# ---------------------- PAGE UI ----------------------
+# ---------------------- PAGE ----------------------
 def model_page():
 
-    st.title("🤖 NHL Goalie Performance Model")
+    st.title("🤖 Predicting Goalie Save Percentage")
+
     df = load_data()
 
     features = ["xGoals", "highDangerShots", "mediumDangerShots", "lowDangerShots", "games_played"]
-    
-    # Drop rows missing any feature values
     df = df.dropna(subset=features)
 
     X = df[features].astype(float)
     y = df["save_percent"].astype(float)
 
-    # Extra safety cleanup: remove non-finite values
+    # Remove any odd remaining values
     mask = np.isfinite(X).all(axis=1) & np.isfinite(y)
-    X = X[mask]
-    y = y[mask]
+    X, y = X[mask], y[mask]
 
 
-    # Train/test split
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.25, random_state=42)
+    # ---------------------- MODEL ----------------------
+    model = RandomForestRegressor(n_estimators=300, random_state=42)
 
-    # Model
-    model = RandomForestRegressor(n_estimators=200, random_state=42)
-    model.fit(X_train, y_train)
+    # Cross-validation score
+    cv_scores = cross_val_score(model, X, y, cv=5, scoring="r2")
+    model.fit(X, y)
 
-    # Evaluate
-    predictions = model.predict(X_test)
-    r2 = r2_score(y_test, predictions)
+    st.write(f"📈 Cross-Validated R²: **{cv_scores.mean():.3f}** (± {cv_scores.std():.3f})")
 
-    st.write(f"📈 Model R² Score: **{r2:.3f}**")
-    st.caption("R² closer to 1 means better predictive accuracy.")
 
     # ---------------------- FEATURE IMPORTANCE ----------------------
-    st.subheader("🔍 Feature Importance")
-
+    st.subheader("🔍 What Impacts Save % Most?")
     importance = pd.DataFrame({
         "feature": features,
         "importance": model.feature_importances_
@@ -73,19 +58,52 @@ def model_page():
 
     st.bar_chart(importance.set_index("feature"))
 
-    # ---------------------- USER INTERACTIVE PREDICTIONS ----------------------
-    st.subheader("🎯 Try a Prediction")
 
-    user_input = {}
+    # ---------------------- EFFECT PLOTS ----------------------
+    st.subheader("📊 How Inputs Affect Predictions (Partial Dependence Trends)")
+
+    for feat in features:
+        grid = np.linspace(df[feat].quantile(.05), df[feat].quantile(.95), 50)
+        temp = X.copy()
+        preds = []
+
+        for val in grid:
+            temp[feat] = val
+            preds.append(model.predict(temp).mean())
+
+        plt.figure(figsize=(6,4))
+        plt.plot(grid, preds)
+        plt.title(f"Effect of {feat} on Save %")
+        plt.xlabel(feat)
+        plt.ylabel("Predicted Save %")
+
+        st.pyplot(plt)
+
+
+    # ---------------------- USER PREDICTION ----------------------
+    st.subheader("🎯 Test a Hypothetical Goalie")
+
+    inputs = {}
     for f in features:
-        user_input[f] = st.slider(
+        inputs[f] = st.number_input(
             f,
-            float(df[f].min()),
-            float(df[f].max()),
-            float(df[f].median())
+            value=float(df[f].median()),
+            min_value=float(df[f].quantile(.05)),
+            max_value=float(df[f].quantile(.95))
         )
 
-    user_df = pd.DataFrame([user_input])
-    result = model.predict(user_df)[0]
+    prediction = model.predict(pd.DataFrame([inputs]))[0]
 
-    st.success(f"🧤 Predicted Save %: **{result:.3f}**")
+    st.success(f"Predicted Save %: **{prediction:.3f}**")
+
+    # Interpretation
+    if prediction > 0.93:
+        tier = "🥇 Elite Starter Level"
+    elif prediction > 0.915:
+        tier = "🥈 Above-Average NHL Starter"
+    elif prediction > 0.900:
+        tier = "🥉 Average Goalie Performance"
+    else:
+        tier = "⚠️ Below NHL Starter Level"
+
+    st.info(tier)
