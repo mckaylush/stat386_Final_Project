@@ -10,7 +10,7 @@ pages = {
     "🏒 Team Back-to-Back Analysis": back_to_back_page,
     "🥵 Fatigue Impact Analysis": goalie_fatigue_page,
     "🎯 Goalie Analytics": goalie_analytics_page,
-    "🕸️ Goalie Skill Radar": goalie_profile_page,
+    "🕸️ Goalie Skill Chart": goalie_profile_page,
     "🤖 Predictive Model": model_page
 }
 
