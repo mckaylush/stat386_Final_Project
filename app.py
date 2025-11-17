@@ -13,8 +13,8 @@ Welcome to the interactive analytics dashboard exploring whether
 
 Use the sidebar to navigate:
 - 📈 Team back-to-back analysis  
-- 🥅 Goalie insights  
-- ⚔️ Goalie Analytics
+- 🥅 Goalie Analytics
+- ⚔️ Goalie Profile
 - 🥵 Fatigue Analysis 
 - ⏱️ Rest Impact
 """)
