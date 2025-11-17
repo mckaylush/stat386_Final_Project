@@ -119,7 +119,6 @@ def goalie_profile_page():
             "High Danger Save %": hd_sv,
             "Medium Danger Save %": md_sv,
             "Low Danger Save %": ld_sv,
-            "GSAx/Game": gsax_game
         })
 
     g1 = extract_metrics(goalie1)
@@ -203,7 +202,7 @@ def goalie_profile_page():
 
     ax.set_yticks(y)
     ax.set_yticklabels(metrics_order)
-    ax.set_xlabel("Save metrics in %,  GSAx/Game in goals")
+    ax.set_xlabel("Save metrics in %")
     ax.grid(axis="x", alpha=0.3)
     ax.legend()
 
