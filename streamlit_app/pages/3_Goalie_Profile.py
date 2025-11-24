@@ -91,7 +91,14 @@ with col2:
 # ---------------------- INSIGHT ----------------------
 st.subheader("🧠 Quick Insight")
 
-diff = (metrics_df.loc[goalie1_name] - metrics_df.loc[goalie2_name])
+# --- Compare Goalie Stats Numerically Only ---
+numeric_cols = metrics_df.select_dtypes(include="number").columns
+
+goalie1_stats = metrics_df.loc[goalie1_name, numeric_cols]
+goalie2_stats = metrics_df.loc[goalie2_name, numeric_cols]
+
+diff = goalie1_stats - goalie2_stats
+
 biggest_metric = diff.abs().idxmax()
 
 leader = goalie1_name if diff[biggest_metric] > 0 else goalie2_name
