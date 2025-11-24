@@ -6,7 +6,8 @@ from .analysis import (
     summarize_rest_buckets,
     rank_rest_sensitivity,
     filter_goalie,
-    summarize_goalie
+    summarize_goalie,
+    enrich_with_rest_metrics
 )
 from .utils import clean_team_abbrev, get_team_logo_url, get_headshot_url
 
