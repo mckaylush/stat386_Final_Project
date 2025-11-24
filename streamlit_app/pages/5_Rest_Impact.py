@@ -5,7 +5,8 @@ from nhlRestEffects.analysis import (
     add_rolling_metrics,
     summarize_rest_buckets,
     rank_rest_sensitivity,
-    assign_rest_bucket
+    assign_rest_bucket,
+    enrich_with_rest_metrics
 )
 
 st.title("⏱️ Rest Impact Analysis")
