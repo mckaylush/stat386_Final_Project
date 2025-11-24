@@ -15,18 +15,25 @@ st.title("⏱️ Rest Impact Analysis")
 
 @st.cache_data
 def cached_rest_data():
-    df = load_rest_data("data/all_teams.csv")
-    df = compute_days_rest(df)
+    df = load_rest_data("data/all_teams.csv").copy()
 
-    # Convert win to numeric binary
-    df["win"] = df["win"].astype(int)
-    print(df["days_rest"].head(20).tolist())
+    # Ensure proper datetime formatting
+    df["gameDate"] = pd.to_datetime(df["gameDate"], errors="coerce")
 
-    # Compute rest buckets
+    # ---- Compute days rest CORRECTLY ----
+    df = df.sort_values(["playerTeam", "gameDate"])
+    df["days_rest"] = df.groupby("playerTeam")["gameDate"].diff().dt.days
+
+    print("DEBUG days_rest:", df["days_rest"].head(50).tolist())  # TEMP DEBUG
+
+    # ---- Compute rest bucket ----
     df["rest_bucket"] = df["days_rest"].apply(assign_rest_bucket)
 
-    # Drop rows where rest bucket is unknown
-    df = df[df["rest_bucket"].notna()]
+    # ---- Convert win column to numeric ----
+    df["win"] = pd.to_numeric(df["win"], errors="coerce").fillna(0).astype(int)
+
+    # ---- Ensure xG% is numeric ----
+    df["xG%"] = pd.to_numeric(df["xG%"], errors="coerce")
 
     return df
 
