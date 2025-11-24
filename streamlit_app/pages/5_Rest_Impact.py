@@ -20,6 +20,7 @@ def cached_rest_data():
 
     # Convert win to numeric binary
     df["win"] = df["win"].astype(int)
+    print(df["days_rest"].head(20).tolist())
 
     # Compute rest buckets
     df["rest_bucket"] = df["days_rest"].apply(assign_rest_bucket)
