@@ -12,7 +12,7 @@ st.title("⏱️ Rest Impact Analysis")
 
 @st.cache_data
 def cached_rest_data():
-    df = load_rest_data("data/all_teams.csv")
+    df = enrich_with_rest_metrics(load_rest_data("data/all_teams.csv"))
 
     # 🛠️ Replace the removed convert_numeric_columns
     if "xG%" in df.columns:
