@@ -13,64 +13,71 @@ st.title("⏱️ Rest Impact Analysis")
 
 @st.cache_data
 def cached_rest_data():
-    df = load_rest_data("data/all_teams.csv")
-    st.write("DEBUG_COLUMNS:", df.columns.tolist())
-    st.write(df.head())
+    df = load_rest_data("data/all_teams.csv").copy()
 
-    # ---- Normalize column names ----
-    rename_map = {
-        "xGoalsPercentage": "xG%",
-        "goalsFor": "goalsFor",
-        "goalsAgainst": "goalsAgainst",
-        "gameDate": "game_date"
-    }
-    df = df.rename(columns=rename_map)
-
-    # ---- Convert numerics safely ----
-    numeric_cols = ["xG%", "goalsFor", "goalsAgainst"]
-
+    # Ensure proper numeric conversion
+    numeric_cols = ["xGoalsPercentage", "goalsFor", "goalsAgainst", "xGoalsAgainst", "xOnGoalFor"]
     for col in numeric_cols:
-        if col in df.columns and isinstance(df[col], pd.Series):
+        if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors="coerce")
 
-    # ---- Derived fields ----
-    df["goal_diff"] = df["goalsFor"] - df["goalsAgainst"]
+    # Ensure xG% exists
+    if "xG%" not in df.columns:
+        df["xG%"] = df["xGoalsPercentage"]
 
-    # If missing, create placeholders for rest/day metrics
-    if "days_rest" not in df.columns:
-        df["days_rest"] = np.nan
+    # Create goal diff
+    if "goal_diff" not in df.columns:
+        df["goal_diff"] = df["goalsFor"] - df["goalsAgainst"]
 
-    df["rest_bucket"] = df["days_rest"].apply(assign_rest_bucket)
+    # Create win column
+    if "win" not in df.columns:
+        df["win"] = (df["goalsFor"] > df["goalsAgainst"]).astype(int)
+
+    # Create rest_days if missing
+    if "rest_days" not in df.columns:
+        df["rest_days"] = np.nan  # fallback
+
+    # Create rest bucket
+    df["rest_bucket"] = df["rest_bucket"].fillna(
+        df["rest_days"].apply(assign_rest_bucket)
+    )
 
     return df
 
+
 df = cached_rest_data()
 
-# ---------------------- FILTERS ----------------------
-teams = sorted(df["team"].unique())
-seasons = sorted(df["season"].unique())
+# Debug panel (you can remove later)
+with st.expander("🛠 Debug Info"):
+    st.write(df.head())
+    st.write(df.columns.tolist())
 
-selected_team = st.sidebar.selectbox("Team:", teams)
-selected_season = st.sidebar.selectbox("Season:", ["All"] + seasons)
+# ============================
+# 📊 Rest vs xG% Plot
+# ============================
+st.subheader("📈 Rest vs Expected Goals Performance")
 
-filtered = df[df["team"] == selected_team].copy()
-if selected_season != "All":
-    filtered = filtered[filtered["season"] == selected_season]
+summary = summarize_rest_buckets(df)
 
-# ---------------------- VIEW ----------------------
-st.subheader(f"📈 Rest vs Expected Goals Performance")
+if summary.empty:
+    st.warning("Not enough data to compare rest buckets.")
+else:
+    fig, ax = plt.subplots(figsize=(10, 5))
+    ax.bar(summary["rest_bucket"], summary["xg_pct"])
+    ax.set_ylabel("Avg xG%")
+    ax.set_title("Expected Goals Percentage by Rest Days")
+    st.pyplot(fig)
 
-fig, ax = plt.subplots(figsize=(10, 5))
-ax.scatter(filtered["daysRest"], filtered["xGoalsPercentage"], alpha=0.7)
-ax.set_xlabel("Days of Rest")
-ax.set_ylabel("Expected Goals % (xG%)")
-ax.grid(alpha=0.2)
+# ============================
+# 🧠 Team Sensitivity Table
+# ============================
+st.subheader("🏒 Teams Most Affected by Fatigue")
 
-st.pyplot(fig)
+fatigue_rank = rank_rest_sensitivity(df)
 
-# Summary Stats
-avg = filtered.groupby("daysRest")["xGoalsPercentage"].mean().reset_index()
-st.subheader("📋 Average xG% by Rest Days")
-st.table(avg.style.format("{:.2f}"))
+if fatigue_rank.empty:
+    st.warning("Not enough data to calculate rest sensitivity.")
+else:
+    st.dataframe(fatigue_rank.style.format("{:.2f}"))
 
-st.caption("Powered by nhlRestEffects package")
+st.caption("Data powered by MoneyPuck & `nhlRestEffects` package.")
