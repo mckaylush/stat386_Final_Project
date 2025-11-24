@@ -120,8 +120,13 @@ pdf_img.seek(0)
 
 # ---------------------- TABLE ----------------------
 st.subheader("📋 Stats Table")
-st.dataframe(metrics_df.style.format("{:.3f}"))
 
+# Clean unexpected text placeholders
+metrics_df = metrics_df.replace(["--", "nan", None, "NA"], np.nan)
+
+# Format only numeric columns
+numeric_cols = metrics_df.select_dtypes(include="number").columns
+st.dataframe(metrics_df.style.format({col: "{:.3f}" for col in numeric_cols}))
 
 # ---------------------- EXPORT ----------------------
 if st.button("📥 Download PDF Report"):
