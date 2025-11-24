@@ -5,3 +5,4 @@ numpy
 plotly
 scikit-learn
 reportlab>=4.0
+git+https://github.com/emclayburn/stat386_Final_Project.git#egg=nhlRestEffects
