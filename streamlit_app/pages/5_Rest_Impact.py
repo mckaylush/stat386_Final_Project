@@ -1,87 +1,52 @@
-import sys, os
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
-
 import streamlit as st
-import numpy as np
+import pandas as pd
 import matplotlib.pyplot as plt
 
 from nhlRestEffects.data_loader import load_rest_data
-from nhlRestEffects.analysis import summarize_rest_buckets, rank_rest_sensitivity
-
+from nhlRestEffects.analysis import (
+    convert_numeric_columns,
+    add_game_numbers,
+    add_rolling_metrics
+)
 
 # ---------------------- PAGE ----------------------
 st.title("⏱️ Rest Impact on Team Performance")
 
 @st.cache_data
 def cached_rest_data():
-    return load_rest_data("data/all_teams.csv")
+    df = load_rest_data("data/all_teams.csv")  
+    df = convert_numeric_columns(df)
+    df = add_game_numbers(df)
+    df = add_rolling_metrics(df)
+    return df
 
 df = cached_rest_data()
 
+# ---------------------- FILTERS ----------------------
+teams = sorted(df["team"].unique())
+seasons = sorted(df["season"].unique())
 
-# ---------------------- SIDEBAR ----------------------
-st.sidebar.header("Filters")
+selected_team = st.sidebar.selectbox("Team:", teams)
+selected_season = st.sidebar.selectbox("Season:", ["All"] + seasons)
 
-metric_choice = st.sidebar.selectbox("Metric", ["Win %", "Expected Goals % (xG%)", "Goal Differential"])
-home_filter = st.sidebar.radio("Game Location", ["All Games", "Home Only", "Away Only"])
-team_highlight = st.sidebar.selectbox("Highlight Team", ["None"] + sorted(df["playerTeam"].unique()))
+filtered = df[df["team"] == selected_team].copy()
+if selected_season != "All":
+    filtered = filtered[filtered["season"] == selected_season]
 
-# Apply filters
-filtered = df.copy()
-if home_filter == "Home Only":
-    filtered = filtered[filtered["home_or_away"] == "HOME"]
-elif home_filter == "Away Only":
-    filtered = filtered[filtered["home_or_away"] == "AWAY"]
+# ---------------------- VIEW ----------------------
+st.subheader(f"📈 Rest vs Expected Goals Performance")
 
+fig, ax = plt.subplots(figsize=(10, 5))
+ax.scatter(filtered["daysRest"], filtered["xGoalsPercentage"], alpha=0.7)
+ax.set_xlabel("Days of Rest")
+ax.set_ylabel("Expected Goals % (xG%)")
+ax.grid(alpha=0.2)
 
-# ---------------------- LEAGUE SUMMARY ----------------------
-league_summary = summarize_rest_buckets(filtered)
-
-metric_map = {
-    "Win %": ("win_pct", "Win Percentage"),
-    "Expected Goals % (xG%)": ("xg_pct", "Expected Goals %"),
-    "Goal Differential": ("goal_diff_mean", "Goal Differential"),
-}
-
-metric_col, metric_label = metric_map[metric_choice]
-
-x_labels = league_summary["rest_bucket"].astype(str).tolist()
-y_values = league_summary[metric_col].values
-
-
-# ---------------------- PLOT ----------------------
-st.subheader(f"📈 League Performance Trend — {metric_choice}")
-
-fig, ax = plt.subplots(figsize=(10, 6))
-x = np.arange(len(x_labels))
-
-ax.plot(x, y_values, marker="o", linewidth=2.5, label="League Avg")
-
-# Add team overlay
-if team_highlight != "None":
-    team_df = filtered[filtered["playerTeam"] == team_highlight]
-    team_summary = summarize_rest_buckets(team_df)
-    if not team_summary.empty:
-        team_map = dict(zip(team_summary["rest_bucket"].astype(str), team_summary[metric_col]))
-        team_y = [team_map.get(lbl, np.nan) for lbl in x_labels]
-        ax.plot(x, team_y, marker="o", linewidth=2.5, color="#d62728", label=team_highlight)
-
-ax.set_xticks(x)
-ax.set_xticklabels(x_labels)
-ax.set_ylabel(metric_label)
-ax.grid(True, alpha=0.3)
-ax.legend()
 st.pyplot(fig)
 
+# Summary Stats
+avg = filtered.groupby("daysRest")["xGoalsPercentage"].mean().reset_index()
+st.subheader("📋 Average xG% by Rest Days")
+st.table(avg.style.format("{:.2f}"))
 
-# ---------------------- TABLES ----------------------
-st.subheader("📋 Performance by Rest Bucket")
-st.dataframe(league_summary)
-
-
-st.subheader("🏅 Rest Sensitivity Ranking (Win %)")
-ranking = rank_rest_sensitivity(filtered)
-st.dataframe(ranking)
-
-
-st.caption("Data from MoneyPuck.com — computed using nhlRestEffects package.")
+st.caption("Powered by nhlRestEffects package")
