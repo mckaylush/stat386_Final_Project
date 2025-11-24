@@ -25,8 +25,9 @@ def cached_rest_data():
 
     # ---- Convert numerics safely ----
     numeric_cols = ["xG%", "goalsFor", "goalsAgainst"]
+
     for col in numeric_cols:
-        if col in df.columns:
+        if col in df.columns and isinstance(df[col], pd.Series):
             df[col] = pd.to_numeric(df[col], errors="coerce")
 
     # ---- Derived fields ----
