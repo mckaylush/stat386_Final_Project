@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "nhlRestEffects"
-version = "0.1.5"
+version = "0.1.6"
 description = "NHL rest impact analytics package"
 authors = [{ name = "Ethan Clayburn" }]
 requires-python = ">=3.9"
