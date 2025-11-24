@@ -1,7 +1,5 @@
 import streamlit as st
 import pandas as pd
-import matplotlib.pyplot as plt
-
 from nhlRestEffects.data_loader import load_rest_data
 from nhlRestEffects.analysis import (
     add_rolling_metrics,
@@ -10,15 +8,19 @@ from nhlRestEffects.analysis import (
     assign_rest_bucket
 )
 
-# ---------------------- PAGE ----------------------
-st.title("⏱️ Rest Impact on Team Performance")
+st.title("⏱️ Rest Impact Analysis")
 
 @st.cache_data
 def cached_rest_data():
-    df = load_rest_data("data/all_teams.csv")  
-    df = convert_numeric_columns(df)
-    df = add_game_numbers(df)
-    df = add_rolling_metrics(df)
+    df = load_rest_data("data/all_teams.csv")
+
+    # 🛠️ Replace the removed convert_numeric_columns
+    if "xG%" in df.columns:
+        df["xG%"] = pd.to_numeric(df["xG%"], errors="coerce")
+
+    # add fatigue buckets
+    df["rest_bucket"] = df["days_rest"].apply(assign_rest_bucket)
+
     return df
 
 df = cached_rest_data()
