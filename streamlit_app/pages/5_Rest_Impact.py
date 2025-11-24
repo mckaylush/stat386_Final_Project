@@ -14,6 +14,8 @@ st.title("⏱️ Rest Impact Analysis")
 @st.cache_data
 def cached_rest_data():
     df = load_rest_data("data/all_teams.csv")
+    st.write("DEBUG_COLUMNS:", df.columns.tolist())
+    st.write(df.head())
 
     # ---- Normalize column names ----
     rename_map = {
