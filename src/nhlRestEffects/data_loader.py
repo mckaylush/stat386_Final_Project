@@ -63,6 +63,13 @@ import numpy as np
 def enrich_with_rest_metrics(df: pd.DataFrame) -> pd.DataFrame:
     df = df.copy()
 
+    rename_map = {
+    "xGoalsPercentage": "xG%",
+    "goalsFor": "goalsFor",
+    "goalsAgainst": "goalsAgainst"
+    }
+    df = df.rename(columns=rename_map)
+
     # Ensure sorting by team + date
     df["gameDate"] = pd.to_datetime(df["gameDate"])
     df = df.sort_values(["playerTeam", "gameDate"])
