@@ -104,7 +104,7 @@ If you find an issue, please open a bug report describing:
 	•	Steps to reproduce
 	•	Expected behavior
 
-⸻
+---
 
 📚 Roadmap
 	•	☐ Publish to PyPI
@@ -112,13 +112,13 @@ If you find an issue, please open a bug report describing:
 	•	☐ Add predictive modeling (rest effect regression)
 	•	☐ Add season-level summary generator
 
-⸻
+---
 
 📄 License
 
 This project is licensed under the MIT License.
 
-⸻
+---
 
 🧊 Credits
 
