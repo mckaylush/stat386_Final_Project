@@ -57,21 +57,38 @@ def load_rest_data(path: str) -> pd.DataFrame:
 
     return df.dropna(subset=["rest_bucket"])
 
+import pandas as pd
+import numpy as np
+
 def enrich_with_rest_metrics(df: pd.DataFrame) -> pd.DataFrame:
-    """Adds rest day metrics, back-to-back flags, win columns, and goal diff."""
-    df = df.sort_values(["playerTeam", "gameDate"]).copy()
+    df = df.copy()
+
+    # Ensure sorting by team + date
     df["gameDate"] = pd.to_datetime(df["gameDate"])
+    df = df.sort_values(["playerTeam", "gameDate"])
 
-    # Calculate days since previous game
-    df["days_rest"] = df.groupby("playerTeam")["gameDate"].diff().dt.days
+    # Compute days rest by team
+    df["days_rest"] = df.groupby("playerTeam")["gameDate"].diff().dt.days.fillna(3)
 
-    # Back-to-back = 0 or 1 days rest
-    df["back_to_back"] = df["days_rest"].isin([0, 1])
+    # Assign rest buckets
+    df["rest_bucket"] = df["days_rest"].apply(lambda d:
+        "0 (B2B)" if d <= 0 else
+        "1 day" if d == 1 else
+        "2 days" if d == 2 else
+        "3 days" if d == 3 else
+        "4+ days"
+    )
 
-    # Add goal differential
+    # Compute win column
+    df["win"] = (df["goalsFor"] > df["goalsAgainst"]).astype(int)
+
+    # Compute goal differential
     df["goal_diff"] = df["goalsFor"] - df["goalsAgainst"]
 
-    # Win/loss flag
-    df["win"] = df["goal_diff"] > 0
+    # Compute xG%
+    if "xGoalsFor" in df.columns and "xGoalsAgainst" in df.columns:
+        df["xG%"] = df["xGoalsFor"] / (df["xGoalsFor"] + df["xGoalsAgainst"])
+    else:
+        df["xG%"] = np.nan
 
     return df
