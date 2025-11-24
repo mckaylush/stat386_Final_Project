@@ -29,6 +29,14 @@ def cached_rest_data():
 
 df = cached_rest_data()
 
+st.write("🔎 RAW HEAD")
+st.write(df.head())
+
+st.write("🔎 UNIQUE rest_bucket VALUES:", df["rest_bucket"].unique().tolist())
+st.write("🔎 WIN VALUE COUNTS:", df["win"].value_counts(dropna=False).to_dict())
+
+st.write("🔎 xG% TYPE:", df["xG%"].dtype)
+
 # ============================
 # 📊 Rest vs xG% Plot
 # ============================
