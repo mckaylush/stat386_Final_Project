@@ -45,7 +45,7 @@ def load_rest_data(path: str) -> pd.DataFrame:
     df["gameDate"] = pd.to_datetime(df["gameDate"], errors="coerce")
     df = df.dropna(subset=["gameDate"])
 
-    df = df[(df["position"] == "Team Level") & (df["situatio n"] == "all")].copy()
+    df = df[(df["position"] == "Team Level") & (df["situation"] == "all")].copy()
 
     df["xG%"] = df["xGoalsFor"] / (df["xGoalsFor"] + df["xGoalsAgainst"]) * 100
     df["goal_diff"] = df["goalsFor"] - df["goalsAgainst"]
