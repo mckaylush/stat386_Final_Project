@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=61", "wheel"]
+requires = ["setuptools>=61"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -9,6 +9,5 @@ description = "NHL rest impact analytics package"
 authors = [{ name = "Ethan Clayburn" }]
 requires-python = ">=3.9"
 
-[tool.setuptools]
-package-dir = {"" = "src"}
-packages = ["nhlRestEffects"]
+[tool.setuptools.packages.find]
+where = ["src"]
