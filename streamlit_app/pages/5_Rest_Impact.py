@@ -7,7 +7,8 @@ from nhlRestEffects.analysis import (
     add_rolling_metrics,
     summarize_rest_buckets,
     rank_rest_sensitivity,
-    assign_rest_bucket
+    assign_rest_bucket,
+    compute_days_rest
 )
 
 st.title("⏱️ Rest Impact Analysis")
@@ -15,15 +16,17 @@ st.title("⏱️ Rest Impact Analysis")
 @st.cache_data
 def cached_rest_data():
     df = load_rest_data("data/all_teams.csv")
+    df = compute_days_rest(df)
 
-    # 🔧 Fix expected column names
-    df.rename(columns={"rest_days": "days_rest"}, inplace=True)
+    # Convert win to numeric binary
+    df["win"] = df["win"].astype(int)
 
-    numeric_cols = ["xG%", "goal_diff", "days_rest"]
-    for col in numeric_cols:
-        df[col] = pd.to_numeric(df[col], errors="coerce")
-
+    # Compute rest buckets
     df["rest_bucket"] = df["days_rest"].apply(assign_rest_bucket)
+
+    # Drop rows where rest bucket is unknown
+    df = df[df["rest_bucket"].notna()]
+
     return df
 
 
