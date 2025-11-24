@@ -56,3 +56,22 @@ def load_rest_data(path: str) -> pd.DataFrame:
     df["rest_bucket"] = df["rest_days"].apply(assign_rest_bucket)
 
     return df.dropna(subset=["rest_bucket"])
+
+def enrich_with_rest_metrics(df: pd.DataFrame) -> pd.DataFrame:
+    """Adds rest day metrics, back-to-back flags, win columns, and goal diff."""
+    df = df.sort_values(["playerTeam", "gameDate"]).copy()
+    df["gameDate"] = pd.to_datetime(df["gameDate"])
+
+    # Calculate days since previous game
+    df["days_rest"] = df.groupby("playerTeam")["gameDate"].diff().dt.days
+
+    # Back-to-back = 0 or 1 days rest
+    df["back_to_back"] = df["days_rest"].isin([0, 1])
+
+    # Add goal differential
+    df["goal_diff"] = df["goalsFor"] - df["goalsAgainst"]
+
+    # Win/loss flag
+    df["win"] = df["goal_diff"] > 0
+
+    return df
