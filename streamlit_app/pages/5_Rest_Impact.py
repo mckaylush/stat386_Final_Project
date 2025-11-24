@@ -14,35 +14,16 @@ st.title("⏱️ Rest Impact Analysis")
 
 @st.cache_data
 def cached_rest_data():
-    df = load_rest_data("data/all_teams.csv").copy()
+    df = load_rest_data("data/all_teams.csv")
 
-    # Ensure proper numeric conversion
-    numeric_cols = ["xGoalsPercentage", "goalsFor", "goalsAgainst", "xGoalsAgainst", "xOnGoalFor"]
+    # 🔧 Fix expected column names
+    df.rename(columns={"rest_days": "days_rest"}, inplace=True)
+
+    numeric_cols = ["xG%", "goal_diff", "days_rest"]
     for col in numeric_cols:
-        if col in df.columns:
-            df[col] = pd.to_numeric(df[col], errors="coerce")
+        df[col] = pd.to_numeric(df[col], errors="coerce")
 
-    # Ensure xG% exists
-    if "xG%" not in df.columns:
-        df["xG%"] = df["xGoalsPercentage"]
-
-    # Create goal diff
-    if "goal_diff" not in df.columns:
-        df["goal_diff"] = df["goalsFor"] - df["goalsAgainst"]
-
-    # Create win column
-    if "win" not in df.columns:
-        df["win"] = (df["goalsFor"] > df["goalsAgainst"]).astype(int)
-
-    # Create rest_days if missing
-    if "rest_days" not in df.columns:
-        df["rest_days"] = np.nan  # fallback
-
-    # Create rest bucket
-    df["rest_bucket"] = df["rest_bucket"].fillna(
-        df["rest_days"].apply(assign_rest_bucket)
-    )
-
+    df["rest_bucket"] = df["days_rest"].apply(assign_rest_bucket)
     return df
 
 
