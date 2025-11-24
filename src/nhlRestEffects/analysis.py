@@ -155,3 +155,18 @@ def rank_rest_sensitivity(df: pd.DataFrame) -> pd.DataFrame:
         return pd.DataFrame()
 
     return pd.DataFrame(rows).sort_values("Rested – Tired (pp)", ascending=False)
+
+def compute_days_rest(df: pd.DataFrame) -> pd.DataFrame:
+    """Compute days of rest based on consecutive game dates per team."""
+    df = df.copy()
+
+    # Ensure datetimes
+    df["gameDate"] = pd.to_datetime(df["gameDate"], errors="coerce")
+
+    # Sort so diff works properly
+    df = df.sort_values(["playerTeam", "gameDate"]).reset_index(drop=True)
+
+    # Compute rest time in days
+    df["days_rest"] = df.groupby("playerTeam")["gameDate"].diff().dt.days
+
+    return df
