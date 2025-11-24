@@ -5,7 +5,8 @@ import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
 
-from nhlRestEffects.data_loader import load_team_data, get_team_logo_url
+from nhlRestEffects.data_loader import load_team_data
+from nhlRestEffects.utils import get_team_logo_url
 from nhlRestEffects.analysis import (
     add_rolling_metrics,
     summarize_back_to_backs,
