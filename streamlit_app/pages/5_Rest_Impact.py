@@ -1,7 +1,7 @@
 import streamlit as st
 import numpy as np
 import pandas as pd
-import matplotlib.pyploy as plt
+import matplotlib.pyplot as plt
 from nhlRestEffects.data_loader import load_rest_data, enrich_with_rest_metrics
 from nhlRestEffects.analysis import (
     add_rolling_metrics,
