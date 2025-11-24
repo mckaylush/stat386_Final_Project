@@ -48,11 +48,6 @@ def cached_rest_data():
 
 df = cached_rest_data()
 
-# Debug panel (you can remove later)
-with st.expander("🛠 Debug Info"):
-    st.write(df.head())
-    st.write(df.columns.tolist())
-
 # ============================
 # 📊 Rest vs xG% Plot
 # ============================
