@@ -12,13 +12,30 @@ st.title("⏱️ Rest Impact Analysis")
 
 @st.cache_data
 def cached_rest_data():
-    df = enrich_with_rest_metrics(load_rest_data("data/all_teams.csv"))
+    df = load_rest_data("data/all_teams.csv")
 
-    # 🛠️ Replace the removed convert_numeric_columns
-    if "xG%" in df.columns:
-        df["xG%"] = pd.to_numeric(df["xG%"], errors="coerce")
+    # ---- Normalize column names ----
+    rename_map = {
+        "xGoalsPercentage": "xG%",
+        "goalsFor": "goalsFor",
+        "goalsAgainst": "goalsAgainst",
+        "gameDate": "game_date"
+    }
+    df = df.rename(columns=rename_map)
 
-    # add fatigue buckets
+    # ---- Convert numerics safely ----
+    numeric_cols = ["xG%", "goalsFor", "goalsAgainst"]
+    for col in numeric_cols:
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors="coerce")
+
+    # ---- Derived fields ----
+    df["goal_diff"] = df["goalsFor"] - df["goalsAgainst"]
+
+    # If missing, create placeholders for rest/day metrics
+    if "days_rest" not in df.columns:
+        df["days_rest"] = np.nan
+
     df["rest_bucket"] = df["days_rest"].apply(assign_rest_bucket)
 
     return df
