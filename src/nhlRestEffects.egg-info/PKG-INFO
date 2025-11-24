@@ -1,0 +1,9 @@
+Metadata-Version: 2.4
+Name: nhlRestEffects
+Version: 0.1.0
+Summary: A reusable analysis package for NHL schedule fatigue and goalie performance
+Author: Ethan Clayburn
+Requires-Dist: pandas
+Requires-Dist: numpy
+Requires-Dist: matplotlib
+Requires-Dist: streamlit
