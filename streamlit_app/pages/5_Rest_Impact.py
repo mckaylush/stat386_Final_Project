@@ -17,26 +17,32 @@ st.title("⏱️ Rest Impact Analysis")
 def cached_rest_data():
     df = load_rest_data("data/all_teams.csv").copy()
 
-    # Ensure proper datetime formatting
-    df["gameDate"] = pd.to_datetime(df["gameDate"], errors="coerce")
+    # Fix dates safely
+    df = fix_dates(df)
 
-    # ---- Compute days rest CORRECTLY ----
     df = df.sort_values(["playerTeam", "gameDate"])
     df["days_rest"] = df.groupby("playerTeam")["gameDate"].diff().dt.days
 
-    print("DEBUG days_rest:", df["days_rest"].head(50).tolist())  # TEMP DEBUG
-
-    # ---- Compute rest bucket ----
     df["rest_bucket"] = df["days_rest"].apply(assign_rest_bucket)
 
-    # ---- Convert win column to numeric ----
     df["win"] = pd.to_numeric(df["win"], errors="coerce").fillna(0).astype(int)
-
-    # ---- Ensure xG% is numeric ----
     df["xG%"] = pd.to_numeric(df["xG%"], errors="coerce")
 
     return df
 
+def fix_dates(df):
+    # Case 1: already a date → do nothing
+    if df["gameDate"].dtype == "datetime64[ns]":
+        return df
+
+    # Case 2: Unix timestamp (int-like)
+    if pd.api.types.is_numeric_dtype(df["gameDate"]):
+        df["gameDate"] = pd.to_datetime(df["gameDate"], unit="s", errors="coerce")
+        return df
+
+    # Case 3: string dates
+    df["gameDate"] = pd.to_datetime(df["gameDate"], format="%Y-%m-%d", errors="coerce")
+    return df
 
 df = cached_rest_data()
 
