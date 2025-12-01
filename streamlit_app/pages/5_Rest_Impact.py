@@ -12,6 +12,15 @@ st.title("⏱️ Rest Impact Analysis")
 def load_data():
     # ... (Keep existing loading and column creation) ...
 
+    try:
+        # Check that this function successfully returns a DataFrame
+        df = load_rest_data("data/all_teams.csv").copy()
+    except Exception as e:
+        # Handle the error if the loading fails
+        st.error(f"Failed to load data from package: {e}")
+        # Return an empty DataFrame to prevent the rest of the code from crashing
+        return pd.DataFrame()
+
     # ---- Sort + compute days of rest ----
     df = df.sort_values(["playerTeam", "gameDate"])
     df["days_rest"] = df.groupby("playerTeam")["gameDate"].diff().dt.days
