@@ -1,81 +1,67 @@
 import streamlit as st
+import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
 from nhlRestEffects.data_loader import load_rest_data
-from nhlRestEffects.analysis import summarize_rest_buckets, rank_rest_sensitivity
 
 
 st.title("⏱️ Rest Impact Analysis")
 
 
-# ---------------------- TEAM NAME CLEANING ----------------------
-def clean_team_abbrev(team):
-    """Normalize team abbreviations so TB=TBL and LA=LAK etc."""
-    mapping = {
-        "T.B.": "TBL", "TB": "TBL", "TAM": "TBL",
-        "S.J.": "SJS", "SJ": "SJS", "SAN": "SJS",
-        "N.J.": "NJD", "NJ": "NJD",
-        "L.A.": "LAK", "LA": "LAK"
-    }
-    team = str(team).strip().upper()
-    return mapping.get(team, team)
-
-
-# ---------------------- DATE FIXING ----------------------
-def fix_dates(df):
-    """Attempts to recover the correct date column from MoneyPuck format."""
-    possible_date_cols = ["gameDate", "date", "date_game", "game_date", "GameDate"]
-
-    real_col = None
-    for c in possible_date_cols:
-        if c in df.columns:
-            real_col = c
-            break
-
-    if real_col is None:
-        raise ValueError("No usable date column found in dataset.")
-
-    # Attempt datetime conversion
-    df[real_col] = pd.to_datetime(df[real_col], errors="coerce")
-
-    # If many dates were NaT and column is numeric → try unix timestamps
-    if df[real_col].isna().sum() > 10 and pd.api.types.is_numeric_dtype(df[real_col]):
-        df[real_col] = pd.to_datetime(df[real_col], unit="s", errors="coerce")
-
-    df["gameDate"] = df[real_col]
-    return df
-
-
-# ---------------------- LOAD DATA ----------------------
+# ---------------------- Load + Cache Data ----------------------
 @st.cache_data
 def cached_rest_data():
     df = load_rest_data("data/all_teams.csv").copy()
 
-    df = fix_dates(df)
+    # Fix dates robustly
+    if pd.api.types.is_numeric_dtype(df["gameDate"]):
+        df["gameDate"] = pd.to_datetime(df["gameDate"], unit="s", errors="coerce")
+    else:
+        df["gameDate"] = pd.to_datetime(df["gameDate"], errors="coerce")
 
-    # Clean team names
-    df["playerTeam"] = df["playerTeam"].apply(clean_team_abbrev)
+    # Normalize team names (fix LA vs LAK, TB vs TBL)
+    team_map = {
+        "LA": "LAK", "L.A.": "LAK", "LOS": "LAK", "LA KINGS": "LAK",
+        "TB": "TBL", "T.B.": "TBL", "TAM": "TBL"
+    }
+    df["playerTeam"] = df["playerTeam"].astype(str).str.upper().replace(team_map)
 
-    # Ensure sorting before rest calculation
+    # Detect xG% column
+    possible_xg_cols = [
+        "xG%", "xGoalsPercentage", "xGoalsPercent", "xg_pct",
+        "expectedGoalsPct", "xGoals_Percent"
+    ]
+    
+    xg_col = next((c for c in possible_xg_cols if c in df.columns), None)
+    if xg_col is None:
+        st.error("❌ No xG% column found — cannot compute rest analysis.")
+        return df
+    
+    df["xG"] = pd.to_numeric(df[xg_col], errors="coerce")
+
+    # Compute rest days
     df = df.sort_values(["playerTeam", "gameDate"])
-
-    # Calculate rest days
     df["days_rest"] = df.groupby("playerTeam")["gameDate"].diff().dt.days
 
-    # Handle bad values
-    df["days_rest"] = df["days_rest"].fillna(0).clip(lower=0, upper=10)
+    # Create rest bins
+    def assign_rest(days):
+        if pd.isna(days) or days < 0:
+            return "0"
+        if days == 0:
+            return "0"
+        elif days == 1:
+            return "1"
+        elif days == 2:
+            return "2"
+        else:
+            return "3+"
 
-    # Assign rest bucket
-    df["rest_bucket"] = df["days_rest"].apply(
-        lambda x: "0 Days" if x == 0 else
-                  "1 Day" if x == 1 else
-                  "2 Days" if x == 2 else
-                  "3+ Days"
-    )
+    df["rest_bucket"] = df["days_rest"].apply(assign_rest)
 
-    # Ensure numeric xG%
-    df["xG%"] = pd.to_numeric(df["xG%"], errors="coerce")
+    # Ensure win is numeric
+    if "win" in df.columns:
+        df["win"] = pd.to_numeric(df["win"], errors="coerce").fillna(0).astype(int)
 
     return df
 
@@ -83,44 +69,63 @@ def cached_rest_data():
 df = cached_rest_data()
 
 
-# ---------------------- SIDEBAR FILTERS ----------------------
+# ---------------------- Sidebar Filters ----------------------
 teams = sorted(df["playerTeam"].unique())
-seasons = ["All Seasons"] + sorted(df["season"].unique())
+seasons = sorted(df["season"].astype(str).unique())
 
-selected_team = st.sidebar.selectbox("Team", teams)
-selected_season = st.sidebar.selectbox("Season", seasons)
+selected_team = st.sidebar.selectbox("Select Team", teams)
+selected_season = st.sidebar.selectbox("Season", ["All Seasons"] + seasons)
 
-filtered = df[df["playerTeam"] == selected_team]
+
+# ---------------------- Filter Data ----------------------
+filtered = df[df["playerTeam"] == selected_team].copy()
 
 if selected_season != "All Seasons":
-    filtered = filtered[filtered["season"] == selected_season]
+    filtered = filtered[filtered["season"].astype(str) == selected_season]
 
 
-# ---------------------- SUMMARY PLOT ----------------------
-st.subheader(f"📈 Expected Goals by Rest Days — {selected_team}")
+# ---------------------- Plot Expected Goals by Rest ----------------------
+st.subheader(f"📉 Expected Goals by Rest Days — {selected_team}")
 
-summary = summarize_rest_buckets(filtered)
+summary = (
+    filtered.groupby("rest_bucket")["xG"]
+    .mean()
+    .reset_index()
+    .rename(columns={"xG": "Avg_xG"})
+)
 
-if summary.empty:
-    st.warning("Not enough data for this selection.")
+# Force all bins to appear
+rest_order = ["0", "1", "2", "3+"]
+summary = summary.set_index("rest_bucket").reindex(rest_order).fillna(0).reset_index()
+
+if summary["Avg_xG"].sum() == 0:
+    st.warning("Not enough xG data available to plot rest effects.")
 else:
-    fig, ax = plt.subplots(figsize=(8, 4))
-    ax.bar(summary["rest_bucket"], summary["xg_pct"], color="#1f77b4")
-    ax.set_ylabel("Average Expected Goals %")
+    fig, ax = plt.subplots(figsize=(9, 4))
+    ax.bar(summary["rest_bucket"], summary["Avg_xG"], color="#1f77b4")
+    ax.set_ylabel("Avg Expected Goals %")
+    ax.set_xlabel("Rest Days")
     ax.set_title(f"{selected_team}: xG% Compared Across Rest Days")
+    ax.axhline(summary["Avg_xG"].mean(), linestyle="--", color="red", alpha=0.5)
     st.pyplot(fig)
 
 
-# ---------------------- RANKING TABLE ----------------------
+# ---------------------- Fatigue Ranking Table ----------------------
 st.subheader("📋 Fatigue Sensitivity Ranking")
 
-ranking = rank_rest_sensitivity(df)
+# Ranking logic: difference between "0 rest" and "3+ rest"
+ranking = (
+    df.groupby(["playerTeam", "rest_bucket"])["xG"]
+    .mean()
+    .reset_index()
+    .pivot(index="playerTeam", columns="rest_bucket", values="xG")
+)
 
-if ranking.empty:
-    st.warning("Not enough sample size to compute fatigue scores.")
-else:
-    st.dataframe(ranking.style.format({"fatigue_score": "{:.2f}"}))
+ranking = ranking.reindex(columns=rest_order).fillna(0)
+ranking["Fatigue Impact (0 → 3+)"] = ranking["3+"] - ranking["0"]
+
+ranking = ranking.sort_values("Fatigue Impact (0 → 3+)")
+st.dataframe(ranking.style.format("{:.3f}"))
 
 
-# ---------------------- FOOTER ----------------------
 st.caption("Data sourced from MoneyPuck.com — Analysis powered by nhlRestEffects.")
