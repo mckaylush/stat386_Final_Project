@@ -45,6 +45,8 @@ def load_prepped_data():
 
 df = load_prepped_data()
 
+st.write("📅 Unique Dates:", df["gameDate"].head(20))
+st.write(df[["playerTeam", "gameDate"]].head(10))
 
 # ---------------------- Sidebar Filters ----------------------
 st.sidebar.header("Filters")
