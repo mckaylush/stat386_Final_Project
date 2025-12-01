@@ -12,7 +12,7 @@ st.title("⏱️ Rest Impact Analysis")
 # ---------------------- LOAD & FIX DATA ----------------------
 @st.cache_data
 def load_data():
-    df = load_rest_data("data/all_teams.csv").copy()
+    df = load_rest_data("../data/all_teams.csv").copy()
 
     # ---- FIX DATES (CRITICAL STEP) ----
     df["gameDate"] = (
