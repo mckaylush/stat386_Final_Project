@@ -63,7 +63,7 @@ goalie1_name = st.sidebar.selectbox("Primary Goalie", goalies)
 goalie2_name = st.sidebar.selectbox("Compare To", [g for g in goalies if g != goalie1_name])
 
 
-# ---------------------- FILTER DATA ----------------------
+# ---------------------- LOAD GOALIE DATA ----------------------
 goalie1 = filter_goalie(df, goalie1_name, selected_season, "All")
 goalie2 = filter_goalie(df, goalie2_name, selected_season, "All")
 
@@ -72,21 +72,13 @@ metrics_raw = pd.DataFrame({
     goalie2_name: summarize_goalie(goalie2)
 }).T
 
-st.write("DEBUG: Available Columns →", list(metrics_raw.columns))
 
+# ---------------------- SELECT KEY METRICS ----------------------
+key_metrics = ["Save %", "Total GSAx", "Shots Faced"]
 
-# ---------------------- KEEP ONLY 3 SIMPLE METRICS ----------------------
-column_map = {
-    "sv%": "Save %",
-    "xG_saved_diff": "Goals Saved Above Expected",
-    "xG_diff": "Goals Saved Above Expected"
-}
+metrics_df = metrics_raw[key_metrics].copy()
 
-valid_cols = [c for c in metrics_raw.columns if c in column_map]
-metrics_df = metrics_raw[valid_cols]
-metrics_df = metrics_df.rename(columns={k:v for k,v in column_map.items() if k in metrics_df.columns})
-
-# Force numeric values
+# Convert numeric columns
 metrics_df = metrics_df.apply(pd.to_numeric, errors="coerce")
 
 
@@ -105,33 +97,27 @@ with col2:
 # ---------------------- SUMMARY INSIGHT ----------------------
 st.subheader("🧠 Summary Insight")
 
-if metrics_df.shape[1] > 1:
-    diffs = (metrics_df.iloc[0] - metrics_df.iloc[1]).abs()
-    strongest_metric = diffs.idxmax()
-    leader = metrics_df[strongest_metric].idxmax()
-    st.success(f"**{leader}** has the biggest edge in **{strongest_metric}**.")
-else:
-    st.info("Not enough comparable stats for a meaningful summary.")
+diff = (metrics_df.iloc[0] - metrics_df.iloc[1]).abs()
+best_metric = diff.idxmax()
+leader = metrics_df[best_metric].idxmax()
+
+st.success(f"**{leader}** has the biggest edge in **{best_metric}**.")
 
 
-# ---------------------- CHART ----------------------
+# ---------------------- BAR CHART ----------------------
 st.subheader("📊 Metric Comparison")
 
 chart_bytes = None
-numeric_df = metrics_df.select_dtypes(include=[np.number])
 
-if numeric_df.empty:
-    st.info("No numeric data available to plot.")
-else:
-    fig, ax = plt.subplots(figsize=(9, 5))
-    numeric_df.plot(kind="barh", ax=ax)
-    ax.grid(axis="x", alpha=0.3)
-    ax.set_xlabel("Value")
-    st.pyplot(fig)
+fig, ax = plt.subplots(figsize=(9, 5))
+metrics_df.plot(kind="barh", ax=ax)
+ax.grid(axis="x", alpha=0.3)
+ax.set_xlabel("Value")
+st.pyplot(fig)
 
-    chart_bytes = BytesIO()
-    fig.savefig(chart_bytes, format="png")
-    chart_bytes.seek(0)
+chart_bytes = BytesIO()
+fig.savefig(chart_bytes, format="png")
+chart_bytes.seek(0)
 
 
 # ---------------------- TABLE ----------------------
