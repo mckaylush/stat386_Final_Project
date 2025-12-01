@@ -8,87 +8,68 @@ from nhlRestEffects.utils import clean_team_abbrev
 
 st.title("⏱️ Rest Impact Analysis")
 
+
+# ---------------------- LOAD & FIX DATA ----------------------
 @st.cache_data
 def load_data():
-    # ... (Keep existing loading and column creation) ...
+    df = load_rest_data("data/all_teams.csv").copy()
 
-    try:
-        # Check that this function successfully returns a DataFrame
-        df = load_rest_data("data/all_teams.csv").copy()
-    except Exception as e:
-        # Handle the error if the loading fails
-        st.error(f"Failed to load data from package: {e}")
-        # Return an empty DataFrame to prevent the rest of the code from crashing
-        return pd.DataFrame()
+    # ---- FIX DATES (CRITICAL STEP) ----
+    df["gameDate"] = (
+        df["gameDate"]
+        .astype(str)
+        .str.extract(r"(\d+)")[0]
+        .str.zfill(8)
+    )
 
-    # ---- Sort + compute days of rest ----
+    df["gameDate"] = pd.to_datetime(df["gameDate"], format="%Y%m%d", errors="coerce")
+
+    # ---- Clean team names (package method) ----
+    df["playerTeam"] = df["playerTeam"].astype(str).apply(clean_team_abbrev)
+
+    # ---- Expected Goals % column ----
+    df["xG"] = pd.to_numeric(df.get("xGoalsPercentage", None), errors="coerce")
+
+    # ---- Compute rest ----
     df = df.sort_values(["playerTeam", "gameDate"])
     df["days_rest"] = df.groupby("playerTeam")["gameDate"].diff().dt.days
 
-    # ---- Bin into 0,1,2,3+ ----
-    def bucket(days):
-        # 1. First game (NaN): Exclude from analysis by returning None.
+    # ---- NEW NHL-style rest bucket logic ----
+    def rest_bucket(days):
         if pd.isna(days): 
-            return None 
-
-        # 2. True 'No Rest' (Back-to-back): days_rest will be 1 day (e.g., played Mon, next game Tue). 
-        #    If you want to count 1 day of rest as '0 days rest' in hockey terms:
-        #    * The difference between today and yesterday is 1 day.
-        #    * A back-to-back is 0 days rest.
-        #    * Let's change the logic to: 
-        #      * days_rest == 1 is '0 days rest' (i.e., back-to-back)
-        #      * days_rest == 2 is '1 day rest'
-        #      * days_rest == 3 is '2 days rest'
-        #
-        #    ***However, based on your original code, you are defining rest days based on the value of the diff. 
-        #    Let's stick to the numerical diff value:***
-
-        # ORIGINAL LOGIC:
-        if days <= 0: return "0" # <- All bad diffs or zero diffs go here.
-        if days == 1: return "1"  # <- THIS IS THE ISSUE! A 1-day diff is a back-to-back (0 rest)
-        if days == 2: return "2"
-        return "3+"
-
-    # ***REVISED BUCKET LOGIC (standard hockey rest days)***
-    def new_bucket(days):
-        if pd.isna(days): 
-            return None # Exclude first game
-
-        # A diff of 1 day (e.g., Mon to Tue) means 0 days off, i.e., back-to-back
+            return None  # exclude first game
+        
         if days <= 1: 
-            return "0" 
+            return "0"     # back-to-back
         
-        # A diff of 2 days (e.g., Mon to Wed) means 1 day off
-        if days == 2: 
-            return "1" 
+        if days == 2:
+            return "1"     # one day rest
+        
+        if days == 3:
+            return "2"     # two days rest
+        
+        return "3+"        # fully rested
 
-        # A diff of 3 days (e.g., Mon to Thur) means 2 days off
-        if days == 3: 
-            return "2"
-        
-        # A diff of 4+ days means 3+ days off
-        if days >= 4:
-            return "3+"
-        
-        # Catch-all for weird/negative diffs that shouldn't exist after sorting
-        return None
+    df["rest_bucket"] = df["days_rest"].apply(rest_bucket)
 
-    df["rest_bucket"] = df["days_rest"].apply(new_bucket)
-    
-    # NEW: Filter out the NA buckets (first games AND any bad data points)
-    df = df.dropna(subset=['rest_bucket']) 
+    # Remove unbucketed rows
+    df = df.dropna(subset=["rest_bucket"])
 
     return df
+
+
 df = load_data()
 
-# ---------------------- Sidebar ----------------------
+
+# ---------------------- Sidebar filters ----------------------
 teams = sorted(df["playerTeam"].unique())
 seasons = sorted(df["season"].astype(str).unique())
 
 selected_team = st.sidebar.selectbox("Select Team", teams)
 selected_season = st.sidebar.selectbox("Season", ["All Seasons"] + seasons)
 
-# ---------------------- Filter data ----------------------
+
+# ---------------------- Filter team view ----------------------
 team_df = df[df["playerTeam"] == selected_team].copy()
 
 if selected_season != "All Seasons":
@@ -96,11 +77,13 @@ if selected_season != "All Seasons":
 
 team_df = team_df.dropna(subset=["xG"])
 
-# ---------------------- Show rest breakdown ----------------------
+
+# ---------------------- Debug count ----------------------
 st.caption(f"Rest bucket counts for {selected_team}")
 st.write(team_df["rest_bucket"].value_counts().sort_index())
 
-# ---------------------- Plot ----------------------
+
+# ---------------------- Plot Expected Goals by Rest ----------------------
 st.subheader(f"📉 Expected Goals % by Rest Days — {selected_team}")
 
 rest_order = ["0", "1", "2", "3+"]
@@ -116,10 +99,10 @@ else:
     )
 
     fig, ax = plt.subplots(figsize=(10, 4))
-    bars = ax.bar(rest_order, summary.values, edgecolor="black")
+    ax.bar(rest_order, summary.values, edgecolor="black")
 
-    for x, height in zip(rest_order, summary.values):
-        ax.text(x, height + 0.01, f"{height:.2f}", ha="center")
+    for label, value in zip(rest_order, summary.values):
+        ax.text(label, value + 0.01, f"{value:.2f}", ha="center")
 
     ax.axhline(summary.mean(), linestyle="--", color="red", alpha=0.5)
     ax.set_ylabel("Avg Expected Goals %")
@@ -128,7 +111,8 @@ else:
 
     st.pyplot(fig)
 
-# ---------------------- League-wide ranking ----------------------
+
+# ---------------------- League-wide fatigue ranking ----------------------
 st.subheader("📋 Fatigue Sensitivity Ranking (League-wide)")
 
 league_df = df.dropna(subset=["xG"])
@@ -137,7 +121,7 @@ if league_df.empty:
     st.warning("No league-wide data.")
 else:
     league_summary = (
-        league_df.groupby(["playerTeam","rest_bucket"])["xG"]
+        league_df.groupby(["playerTeam", "rest_bucket"])["xG"]
         .mean()
         .unstack()
         .reindex(columns=rest_order)
