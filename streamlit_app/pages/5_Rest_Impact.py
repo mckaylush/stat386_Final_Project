@@ -15,9 +15,7 @@ def load_and_prepare_rest_data():
 
     # 1) Parse gameDate: values like 20151007 (YYYYMMDD)
     df["gameDate"] = pd.to_datetime(
-        df["gameDate"].astype(str),
-        format="%Y%m%d",
-        errors="coerce"
+        df["gameDate"], errors="coerce"
     )
 
     # 2) Clean team abbreviations (handles LA/LAK, TB/TBL, etc.)
