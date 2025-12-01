@@ -32,14 +32,14 @@ def load_data():
 
     # ---- Bin into 0,1,2,3+ ----
     def bucket(days):
-        if pd.isna(days): return "0"
+        if pd.isna(days): return None
         if days <= 0: return "0"
         if days == 1: return "1"
         if days == 2: return "2"
         return "3+"
 
     df["rest_bucket"] = df["days_rest"].apply(bucket)
-
+    df = df.dropna(subset=['rest_bucket'])
     return df
 
 
