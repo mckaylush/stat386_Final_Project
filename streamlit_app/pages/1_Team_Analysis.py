@@ -35,7 +35,16 @@ st.sidebar.header("Filters")
 mode = st.sidebar.radio("Mode", ["Team", "League-wide"])
 team_list = sorted(df["playerTeam"].unique())
 
-# ---------------------- METRIC SELECTOR ----------------------
+if mode == "Team":
+    selected_team = st.sidebar.selectbox("Select Team", team_list)
+else:
+    selected_team = None
+
+# ---- Season selector comes BEFORE metric selector ----
+season_options = ["All Seasons (2016–Present)"] + sorted(df["season_label"].unique())
+selected_season = st.sidebar.selectbox("Select Season", season_options)
+
+# ---- Metric selector now safely checks mode + season ----
 if mode == "Team" and selected_season != "All Seasons (2016–Present)":
     metric_mode = st.sidebar.radio(
         "Metric",
@@ -46,26 +55,11 @@ else:
         "<small style='color:gray;'>Metric selection visible only when viewing a single team & single season.</small>",
         unsafe_allow_html=True
     )
-    metric_mode = "Expected Goals Percentage (xG%)"  
-# Season filter
-season_options = ["All Seasons (2016–Present)"] + sorted(df["season_label"].unique())
-selected_season = st.sidebar.selectbox("Select Season", season_options)
-
-if selected_season != "All Seasons (2016–Present)":
-    metric_mode = st.sidebar.radio(
-        "Metric",
-        ["Raw xGF/xGA", "Expected Goals Percentage (xG%)", "Actual vs Expected Goals"]
-    )
-else:
-    st.sidebar.markdown(
-        "<small style='color:gray;'>Metric selection available when viewing a single season.</small>",
-        unsafe_allow_html=True
-    )
-    metric_mode = "Expected Goals Percentage (xG%)" 
-
+    metric_mode = "Expected Goals Percentage (xG%)"  # fallback
 
 rolling_window = st.sidebar.selectbox("Rolling Average", [1, 5, 10], index=0)
 home_away = st.sidebar.radio("Home/Away Split", ["All Games", "Home Only", "Away Only"])
+
 
 
 # ---------------------- FILTER DATA ----------------------
