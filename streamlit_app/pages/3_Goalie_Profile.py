@@ -2,12 +2,12 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+from math import pi
 from io import BytesIO
 
-# ---- Import packaged functions ----
 from nhlRestEffects.data_loader import load_goalie_data
 from nhlRestEffects.utils import get_headshot_url
-from nhlRestEffects.analysis import filter_goalie, summarize_goalie
+from nhlRestEffects.analysis import filter_goalie
 
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
@@ -29,7 +29,7 @@ def export_pdf(goalie1, goalie2, metrics_df, img_bytes):
     pdf.drawImage(ImageReader(img_bytes), 80, 430, width=420, height=260)
 
     pdf.setFont("Helvetica-Bold", 12)
-    pdf.drawString(40, 400, "Metric Values:")
+    pdf.drawString(40, 400, "Metric Breakdown:")
 
     pdf.setFont("Helvetica", 10)
     y = 380
@@ -67,17 +67,47 @@ goalie1_name = st.sidebar.selectbox("Primary Goalie", goalies)
 goalie2_name = st.sidebar.selectbox("Compare With", [g for g in goalies if g != goalie1_name])
 
 
-# ---------------------- APPLY PACKAGE ANALYSIS ----------------------
+# ---------------------- APPLY PACKAGE FILTER ----------------------
 goalie1 = filter_goalie(df, goalie1_name, selected_season, selected_situation)
 goalie2 = filter_goalie(df, goalie2_name, selected_season, selected_situation)
 
-metrics_df = pd.DataFrame(
-    [summarize_goalie(goalie1), summarize_goalie(goalie2)],
-    index=[goalie1_name, goalie2_name]
-)
+
+# ---------------------- METRIC ENGINE ----------------------
+def compute_metrics(g):
+
+    low = g["lowDangerShots"].sum()
+    med = g["mediumDangerShots"].sum()
+    high = g["highDangerShots"].sum()
+    total_shots = low + med + high
+
+    return pd.Series({
+        "GSAx": (g["xGoals"].sum() - g["goals"].sum()) * -1,  # invert so higher = better
+        "% High Danger Shots": 1 - (high / total_shots if total_shots > 0 else 0),
+        "High Danger Save %": 1 - (g["highDangerGoals"].sum() / high if high > 0 else 0),
+        "Rebound Control Score": 1 - (g["rebounds"].sum() / g["unblocked_shot_attempts"].sum()
+                                     if g["unblocked_shot_attempts"].sum() > 0 else 0),
+        "Freeze Rate": (g["freeze"].sum() / g["unblocked_shot_attempts"].sum()
+                        if g["unblocked_shot_attempts"].sum() > 0 else 0),
+        "Puck Handling Index": (
+            (g["playContinuedInZone"].sum() + g["playContinuedOutsideZone"].sum()) /
+            (g["playStopped"].sum() + g["playContinuedInZone"].sum() + g["playContinuedOutsideZone"].sum())
+            if (
+                g["playStopped"].sum() + 
+                g["playContinuedInZone"].sum() + 
+                g["playContinuedOutsideZone"].sum()
+            ) > 0 else 0),
+        "Minutes Per Game": (g["icetime"].sum() / g["games_played"].sum() / 60
+                             if g["games_played"].sum() > 0 else 0),
+    })
 
 
-# ---------------------- HEADER DISPLAY ----------------------
+metrics_df = pd.DataFrame({
+    goalie1_name: compute_metrics(goalie1),
+    goalie2_name: compute_metrics(goalie2)
+}).T
+
+
+# ---------------------- HEADER ----------------------
 col1, col2 = st.columns(2)
 with col1:
     st.image(get_headshot_url(goalie1["playerId"].iloc[0]), width=150)
@@ -88,28 +118,31 @@ with col2:
     st.subheader(goalie2_name)
 
 
-# ---------------------- INSIGHT ----------------------
-st.subheader("🧠 Quick Insight")
+# ---------------------- RADAR CHART ----------------------
+st.subheader("📈 Goalie Skill Radar Chart")
 
-# --- Compare Goalie Stats Numerically Only ---
-numeric_cols = metrics_df.select_dtypes(include="number").columns
+radar_df = (metrics_df - metrics_df.min()) / (metrics_df.max() - metrics_df.min())
 
-goalie1_stats = metrics_df.loc[goalie1_name, numeric_cols]
-goalie2_stats = metrics_df.loc[goalie2_name, numeric_cols]
+categories = radar_df.columns.tolist()
+N = len(categories)
 
-diff = goalie1_stats - goalie2_stats
+angles = [n / float(N) * 2 * pi for n in range(N)]
+angles += angles[:1]
 
-biggest_metric = diff.abs().idxmax()
+fig = plt.figure(figsize=(6, 6))
+ax = plt.subplot(111, polar=True)
 
-leader = goalie1_name if diff[biggest_metric] > 0 else goalie2_name
-st.success(f"**{leader}** leads most in **{biggest_metric}**.")
+for goalie in radar_df.index:
+    values = radar_df.loc[goalie].tolist()
+    values += values[:1]
+    ax.plot(angles, values, linewidth=2, label=goalie)
+    ax.fill(angles, values, alpha=0.15)
 
-# ---------------------- BAR CHART ----------------------
-st.subheader("📊 Comparison Chart")
+ax.set_xticks(angles[:-1])
+ax.set_xticklabels(categories, fontsize=9)
+ax.set_yticks([])
+ax.legend(loc="upper right", bbox_to_anchor=(1.35, 1.15))
 
-fig, ax = plt.subplots(figsize=(10, 6))
-metrics_df.plot(kind="barh", ax=ax)
-ax.grid(axis="x", alpha=0.3)
 st.pyplot(fig)
 
 # Save for PDF
@@ -118,18 +151,20 @@ fig.savefig(pdf_img, format="png")
 pdf_img.seek(0)
 
 
+# ---------------------- SUMMARY ----------------------
+leaderboard = metrics_df.idxmax()
+strength = leaderboard.value_counts().idxmax()
+
+st.success(f"🧠 **Key takeaway:** {strength} is the area where one goalie most clearly outperforms the other.")
+
+
 # ---------------------- TABLE ----------------------
-st.subheader("📋 Stats Table")
+st.subheader("📋 Metric Comparison Table")
+st.dataframe(metrics_df.style.format("{:.3f}"))
 
-# Clean unexpected text placeholders
-metrics_df = metrics_df.replace(["--", "nan", None, "NA"], np.nan)
-
-# Format only numeric columns
-numeric_cols = metrics_df.select_dtypes(include="number").columns
-st.dataframe(metrics_df.style.format({col: "{:.3f}" for col in numeric_cols}))
 
 # ---------------------- EXPORT ----------------------
-if st.button("📥 Download PDF Report"):
+if st.button("📥 Generate PDF Report"):
     pdf_buffer = export_pdf(goalie1_name, goalie2_name, metrics_df, pdf_img)
     st.download_button(
         "Download PDF",
