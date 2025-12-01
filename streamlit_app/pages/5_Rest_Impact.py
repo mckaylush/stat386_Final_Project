@@ -42,6 +42,8 @@ def load_prepped_data():
 
     return df.dropna(subset=["rest_bin"])
 
+df = load_prepped_data()
+
 # ---------------------- Sidebar Filters ----------------------
 st.sidebar.header("Filters")
 
