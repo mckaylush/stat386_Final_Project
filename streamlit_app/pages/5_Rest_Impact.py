@@ -31,6 +31,8 @@ def load_and_prepare_rest_data():
     df = df.sort_values(["playerTeam", "gameDate"])
     df["days_rest"] = df.groupby("playerTeam")["gameDate"].diff().dt.days
 
+st.write("DEBUG — Raw gameDate values:", df["gameDate"].head(10).tolist())
+
     # 5) Bin rest days into 0, 1, 2, 3+  (leave NaN as NaN)
     def rest_bucket(days):
         if pd.isna(days):
