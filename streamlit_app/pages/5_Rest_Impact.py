@@ -42,8 +42,6 @@ def load_prepped_data():
 
     return df.dropna(subset=["rest_bin"])
 
-st.write(df[["playerTeam", "gameId", "gameDate", "days_rest"]].head(20))
-
 # ---------------------- Sidebar Filters ----------------------
 st.sidebar.header("Filters")
 
