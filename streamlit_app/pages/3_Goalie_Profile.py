@@ -24,7 +24,8 @@ def export_pdf(goalie1, goalie2, metrics_df, chart_bytes):
     pdf.setFont("Helvetica", 12)
     pdf.drawString(40, 740, f"{goalie1} vs {goalie2}")
 
-    pdf.drawImage(ImageReader(chart_bytes), 80, 430, width=420, height=260)
+    if chart_bytes:
+        pdf.drawImage(ImageReader(chart_bytes), 80, 430, width=420, height=260)
 
     pdf.setFont("Helvetica-Bold", 12)
     pdf.drawString(40, 400, "Stats:")
@@ -62,34 +63,32 @@ goalie1_name = st.sidebar.selectbox("Primary Goalie", goalies)
 goalie2_name = st.sidebar.selectbox("Compare To", [g for g in goalies if g != goalie1_name])
 
 
-# ---------------------- FILTERED SUBSETS ----------------------
+# ---------------------- FILTER DATA ----------------------
 goalie1 = filter_goalie(df, goalie1_name, selected_season, "All")
 goalie2 = filter_goalie(df, goalie2_name, selected_season, "All")
 
-# Build initial metrics df
 metrics_raw = pd.DataFrame({
     goalie1_name: summarize_goalie(goalie1),
     goalie2_name: summarize_goalie(goalie2)
 }).T
 
 
-# ---------------------- COLUMN SELECTION ----------------------
-# Pick the same 3 key metrics from the original version
+# ---------------------- KEEP ONLY 3 SIMPLE METRICS ----------------------
 column_map = {
-    "save_percentage": "Save %",
-    "save_pct": "Save %",
     "sv%": "Save %",
-    "goals_saved_above_expected": "Goals Saved Above Expected",
     "xG_saved_diff": "Goals Saved Above Expected",
-    "xG_diff": "Goals Saved Above Expected",
-    "rebound_rate": "Rebound Rate"
+    "xG_diff": "Goals Saved Above Expected"
 }
 
 valid_cols = [c for c in metrics_raw.columns if c in column_map]
 metrics_df = metrics_raw[valid_cols]
-metrics_df = metrics_df.rename(columns=column_map)
+metrics_df = metrics_df.rename(columns={k:v for k,v in column_map.items() if k in metrics_df.columns})
 
-# ---------------------- HEADER SECTION ----------------------
+# Force numeric values
+metrics_df = metrics_df.apply(pd.to_numeric, errors="coerce")
+
+
+# ---------------------- HEADER ----------------------
 col1, col2 = st.columns(2)
 
 with col1:
@@ -105,27 +104,32 @@ with col2:
 st.subheader("🧠 Summary Insight")
 
 if metrics_df.shape[1] > 1:
-    diff = (metrics_df.iloc[0] - metrics_df.iloc[1]).abs()
-    best_metric = diff.idxmax()
-    leader = metrics_df[best_metric].idxmax()
-    st.success(f"**{leader}** stands out most in **{best_metric}**.")
+    diffs = (metrics_df.iloc[0] - metrics_df.iloc[1]).abs()
+    strongest_metric = diffs.idxmax()
+    leader = metrics_df[strongest_metric].idxmax()
+    st.success(f"**{leader}** has the biggest edge in **{strongest_metric}**.")
 else:
-    st.info("Not enough comparable stats available for a summary.")
+    st.info("Not enough comparable stats for a meaningful summary.")
 
 
-# ---------------------- BAR CHART ----------------------
+# ---------------------- CHART ----------------------
 st.subheader("📊 Metric Comparison")
 
-fig, ax = plt.subplots(figsize=(9, 5))
-metrics_df.plot(kind="barh", ax=ax)
-ax.grid(axis="x", alpha=0.3)
-ax.set_xlabel("Value")
-st.pyplot(fig)
+chart_bytes = None
+numeric_df = metrics_df.select_dtypes(include=[np.number])
 
-# Store chart image for PDF
-chart_bytes = BytesIO()
-fig.savefig(chart_bytes, format="png")
-chart_bytes.seek(0)
+if numeric_df.empty:
+    st.info("No numeric data available to plot.")
+else:
+    fig, ax = plt.subplots(figsize=(9, 5))
+    numeric_df.plot(kind="barh", ax=ax)
+    ax.grid(axis="x", alpha=0.3)
+    ax.set_xlabel("Value")
+    st.pyplot(fig)
+
+    chart_bytes = BytesIO()
+    fig.savefig(chart_bytes, format="png")
+    chart_bytes.seek(0)
 
 
 # ---------------------- TABLE ----------------------
