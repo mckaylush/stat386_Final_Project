@@ -15,38 +15,34 @@ st.title("⏱️ Rest Impact Analysis")
 def load_prepped_data():
     df = load_rest_data("data/all_teams.csv").copy()
 
-    # Normalize team names
+    # Normalize team labels
     df["playerTeam"] = df["playerTeam"].astype(str).str.strip().str.upper()
     df["playerTeam"] = df["playerTeam"].apply(clean_team_abbrev)
 
-    # Ensure game date is datetime
-    df["gameDate"] = pd.to_datetime(df["gameDate"], errors="coerce")
-    df = df.sort_values(["playerTeam", "gameDate"])
+    # --- FIX DATE ---
+    # Extract first 8 digits of gameId -> YYYYMMDD
+    df["gameDate"] = df["gameId"].astype(str).str[:8]
+    df["gameDate"] = pd.to_datetime(df["gameDate"], format="%Y%m%d", errors="coerce")
 
-    # Compute rest BEFORE user filtering
+    # Sort and compute rest AFTER fixing date
+    df = df.sort_values(["playerTeam", "gameDate"])
     df["days_rest"] = df.groupby("playerTeam")["gameDate"].diff().dt.days
 
-    # Create rest buckets matching your original version
+    # Bucket rest days
     def rest_bin(x):
-        if pd.isna(x):
-            return None
-        if x >= 5:
-            return "5+"
+        if pd.isna(x): return None
+        if x >= 5: return "5+"
         return str(int(x))
 
     df["rest_bin"] = df["days_rest"].apply(rest_bin)
 
-    # Make sure key stats are numeric
-    df["xG%"] = pd.to_numeric(df["xG%"], errors="coerce")
+    # Ensure numeric fields
     df["win"] = pd.to_numeric(df["win"], errors="coerce").fillna(0).astype(int)
+    df["xG%"] = pd.to_numeric(df["xG%"], errors="coerce")
 
     return df.dropna(subset=["rest_bin"])
 
-
-df = load_prepped_data()
-
-st.write("📅 Unique Dates:", df["gameDate"].head(20))
-st.write(df[["playerTeam", "gameDate"]].head(10))
+st.write(df[["playerTeam", "gameId", "gameDate", "days_rest"]].head(20))
 
 # ---------------------- Sidebar Filters ----------------------
 st.sidebar.header("Filters")
