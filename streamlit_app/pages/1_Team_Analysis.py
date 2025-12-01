@@ -24,6 +24,10 @@ def load_cached_data(path):
 DATA_PATH = "data/all_teams.csv"
 df = load_cached_data(DATA_PATH)
 
+# ---------------------- CLEAN TEAM LABELS ----------------------
+df["playerTeam"] = df["playerTeam"].astype(str).str.strip().str.upper()
+df["playerTeam"] = df["playerTeam"].apply(clean_team_abbrev)
+
 
 # ---------------------- SIDEBAR FILTERS ----------------------
 st.sidebar.header("Filters")
