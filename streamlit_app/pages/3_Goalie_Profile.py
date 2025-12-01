@@ -72,6 +72,8 @@ metrics_raw = pd.DataFrame({
     goalie2_name: summarize_goalie(goalie2)
 }).T
 
+st.write("DEBUG: Available Columns →", list(metrics_raw.columns))
+
 
 # ---------------------- KEEP ONLY 3 SIMPLE METRICS ----------------------
 column_map = {
