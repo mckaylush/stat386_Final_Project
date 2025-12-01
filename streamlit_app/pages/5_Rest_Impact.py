@@ -29,19 +29,22 @@ def load_prepped_data():
     df = df.sort_values(["playerTeam", "gameDate"])
     df["days_rest"] = df.groupby("playerTeam")["gameDate"].diff().dt.days
 
-    # Bucket rest into 0 / 1 / 2 / 3+
+# Convert rest values to integer (round nearest)
+    df["days_rest"] = df["days_rest"].round().astype("Int64")
+    
     def rest_bin(x):
         if pd.isna(x):
             return None
-        if x == 0:
+        if x <= 0:
             return "0"
         if x == 1:
             return "1"
         if x == 2:
             return "2"
         return "3+"
-
+    
     df["rest_bin"] = df["days_rest"].apply(rest_bin)
+
 
     # Ensure numeric
     df["win"] = pd.to_numeric(df["win"], errors="coerce").fillna(0).astype(int)
