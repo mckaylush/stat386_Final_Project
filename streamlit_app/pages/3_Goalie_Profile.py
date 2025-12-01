@@ -66,15 +66,34 @@ goalie1 = filter_goalie(df, goalie1_name, selected_season, "All")
 goalie2 = filter_goalie(df, goalie2_name, selected_season, "All")
 
 # Simple metric set (same ones from original project)
+# Build initial metrics df
+metrics_df = pd.DataFrame({
+    goalie1_name: summarize_goalie(goalie1),
+    goalie2_name: summarize_goalie(goalie2)
+}).T
+
+# Auto-detect correct columns
 possible_cols = [
-    "save_pct", "save_percentage", "sv%", 
+    "save_pct", "save_percentage", "sv%",
     "xG_saved_diff", "xG_diff", "goals_saved_above_expected",
     "rebound_rate"
 ]
 
 selected_cols = [c for c in possible_cols if c in metrics_df.columns]
-
 metrics_df = metrics_df[selected_cols]
+
+# Clean display names
+rename_map = {
+    "save_pct": "Save %",
+    "save_percentage": "Save %",
+    "sv%": "Save %",
+    "xG_saved_diff": "Goals Saved Above Expected",
+    "xG_diff": "Goals Saved Above Expected",
+    "goals_saved_above_expected": "Goals Saved Above Expected",
+    "rebound_rate": "Rebound Rate"
+}
+
+metrics_df = metrics_df.rename(columns={k:v for k,v in rename_map.items() if k in metrics_df.columns})
 
 # ---------------------- HEADER ----------------------
 col1, col2 = st.columns(2)
