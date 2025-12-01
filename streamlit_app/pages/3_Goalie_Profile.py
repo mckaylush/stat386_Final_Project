@@ -7,12 +7,13 @@ from io import BytesIO
 from nhlRestEffects.data_loader import load_goalie_data
 from nhlRestEffects.utils import get_headshot_url
 from nhlRestEffects.analysis import filter_goalie, summarize_goalie
+
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
 from reportlab.lib.utils import ImageReader
 
 
-# ---------------------- PDF EXPORT FUNCTION ----------------------
+# ---------------------- PDF EXPORT ----------------------
 def export_pdf(goalie1, goalie2, metrics_df, chart_bytes):
     buffer = BytesIO()
     pdf = canvas.Canvas(buffer, pagesize=letter)
@@ -65,37 +66,30 @@ goalie2_name = st.sidebar.selectbox("Compare To", [g for g in goalies if g != go
 goalie1 = filter_goalie(df, goalie1_name, selected_season, "All")
 goalie2 = filter_goalie(df, goalie2_name, selected_season, "All")
 
-# Simple metric set (same ones from original project)
 # Build initial metrics df
-metrics_df = pd.DataFrame({
+metrics_raw = pd.DataFrame({
     goalie1_name: summarize_goalie(goalie1),
     goalie2_name: summarize_goalie(goalie2)
 }).T
 
-# Auto-detect correct columns
-possible_cols = [
-    "save_pct", "save_percentage", "sv%",
-    "xG_saved_diff", "xG_diff", "goals_saved_above_expected",
-    "rebound_rate"
-]
 
-selected_cols = [c for c in possible_cols if c in metrics_df.columns]
-metrics_df = metrics_df[selected_cols]
-
-# Clean display names
-rename_map = {
-    "save_pct": "Save %",
+# ---------------------- COLUMN SELECTION ----------------------
+# Pick the same 3 key metrics from the original version
+column_map = {
     "save_percentage": "Save %",
+    "save_pct": "Save %",
     "sv%": "Save %",
+    "goals_saved_above_expected": "Goals Saved Above Expected",
     "xG_saved_diff": "Goals Saved Above Expected",
     "xG_diff": "Goals Saved Above Expected",
-    "goals_saved_above_expected": "Goals Saved Above Expected",
     "rebound_rate": "Rebound Rate"
 }
 
-metrics_df = metrics_df.rename(columns={k:v for k,v in rename_map.items() if k in metrics_df.columns})
+valid_cols = [c for c in metrics_raw.columns if c in column_map]
+metrics_df = metrics_raw[valid_cols]
+metrics_df = metrics_df.rename(columns=column_map)
 
-# ---------------------- HEADER ----------------------
+# ---------------------- HEADER SECTION ----------------------
 col1, col2 = st.columns(2)
 
 with col1:
@@ -107,12 +101,16 @@ with col2:
     st.subheader(goalie2_name)
 
 
-# ---------------------- QUICK TAKEAWAY ----------------------
+# ---------------------- SUMMARY INSIGHT ----------------------
 st.subheader("🧠 Summary Insight")
 
-best_metric = abs(metrics_df.diff().iloc[1]).idxmax()
-leader = metrics_df[best_metric].idxmax()
-st.success(f"**{leader}** stands out most in **{best_metric.replace('_', ' ').title()}**.")
+if metrics_df.shape[1] > 1:
+    diff = (metrics_df.iloc[0] - metrics_df.iloc[1]).abs()
+    best_metric = diff.idxmax()
+    leader = metrics_df[best_metric].idxmax()
+    st.success(f"**{leader}** stands out most in **{best_metric}**.")
+else:
+    st.info("Not enough comparable stats available for a summary.")
 
 
 # ---------------------- BAR CHART ----------------------
@@ -121,10 +119,10 @@ st.subheader("📊 Metric Comparison")
 fig, ax = plt.subplots(figsize=(9, 5))
 metrics_df.plot(kind="barh", ax=ax)
 ax.grid(axis="x", alpha=0.3)
-ax.set_xlabel("Scaled Value")
+ax.set_xlabel("Value")
 st.pyplot(fig)
 
-# Store for PDF
+# Store chart image for PDF
 chart_bytes = BytesIO()
 fig.savefig(chart_bytes, format="png")
 chart_bytes.seek(0)
@@ -135,12 +133,13 @@ st.subheader("📋 Detailed Stats")
 st.dataframe(metrics_df.style.format("{:.3f}"))
 
 
-# ---------------------- EXPORT ----------------------
+# ---------------------- PDF DOWNLOAD ----------------------
 if st.button("📥 Download PDF Report"):
     pdf_buffer = export_pdf(goalie1_name, goalie2_name, metrics_df, chart_bytes)
     st.download_button(
-        f"Download Report ({goalie1_name}_vs_{goalie2_name}).pdf",
+        label="Download PDF",
         data=pdf_buffer,
+        file_name=f"{goalie1_name}_vs_{goalie2_name}.pdf",
         mime="application/pdf"
     )
 
