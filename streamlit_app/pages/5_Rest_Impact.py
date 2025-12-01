@@ -8,6 +8,9 @@ from nhlRestEffects.utils import clean_team_abbrev
 
 st.title("⏱️ Rest Impact Analysis")
 
+import os
+st.write("📁 Current working directory:", os.getcwd())
+st.write("📁 Available files:", os.listdir())
 
 # ---------------------- LOAD & FIX DATA ----------------------
 @st.cache_data
