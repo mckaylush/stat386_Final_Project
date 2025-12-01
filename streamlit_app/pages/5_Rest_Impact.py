@@ -16,12 +16,9 @@ def load_data():
     # ---- Fix dates ----
     df["gameDate"] = (
         df["gameDate"]
-        .astype(str)
-        .str.extract(r"(\d+)")[0]  # keep only digits
-        .str.zfill(8)              # pad to YYYYMMDD if needed
     )
 
-    df["gameDate"] = pd.to_datetime(df["gameDate"], format="%Y%m%d", errors="coerce")
+    df["gameDate"] = pd.to_datetime(df["gameDate"], errors="coerce")
 
     # ---- Normalize teams using your package helper ----
     df["playerTeam"] = df["playerTeam"].astype(str).str.strip().apply(clean_team_abbrev)
