@@ -8,14 +8,11 @@ from nhlRestEffects.utils import clean_team_abbrev
 
 st.title("⏱️ Rest Impact Analysis")
 
-import os
-st.write("📁 Current working directory:", os.getcwd())
-st.write("📁 Available files:", os.listdir())
 
 # ---------------------- LOAD & FIX DATA ----------------------
 @st.cache_data
 def load_data():
-    df = load_rest_data("../data/all_teams.csv").copy()
+    df = load_rest_data("../../data/all_teams.csv").copy()
 
     # ---- FIX DATES (CRITICAL STEP) ----
     df["gameDate"] = (
