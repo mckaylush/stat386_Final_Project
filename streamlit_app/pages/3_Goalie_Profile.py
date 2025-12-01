@@ -74,7 +74,7 @@ metrics_raw = pd.DataFrame({
 
 
 # ---------------------- SELECT KEY METRICS ----------------------
-key_metrics = ["Save %", "Total GSAx", "Shots Faced"]
+key_metrics = ["Save %", "Total GSAx"]
 
 metrics_df = metrics_raw[key_metrics].copy()
 
