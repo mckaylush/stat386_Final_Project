@@ -47,9 +47,54 @@ def load_and_prepare_rest_data():
 
     return df
 
+# ---------------------- Load + Cache Data ----------------------
+@st.cache_data
+def cached_rest_data():
+    df = load_rest_data("data/all_teams.csv").copy()
+
+    # 👉 FIX: Clean raw gameDate before parsing
+    df["gameDate"] = (
+        df["gameDate"]
+        .astype(str)
+        .str.replace(r"[^\d]", "", regex=True)  # keep only digits
+        .str.strip()
+    )
+
+    # 👉 Parse properly now that it's clean
+    df["gameDate"] = pd.to_datetime(df["gameDate"], format="%Y%m%d", errors="coerce")
+
+    # Normalize team names
+    team_map = {
+        "LA": "LAK", "L.A.": "LAK", "LOS": "LAK",
+        "TB": "TBL", "T.B.": "TBL", "TAM": "TBL"
+    }
+    df["playerTeam"] = df["playerTeam"].astype(str).str.upper().replace(team_map)
+
+    # Detect xG% column
+    possible_xg_cols = [
+        "xGoalsPercentage","xG%","xGoalsPercent","xg_pct","expectedGoalsPct"
+    ]
+    xg_col = next((c for c in possible_xg_cols if c in df.columns), None)
+    df["xG"] = pd.to_numeric(df[xg_col], errors="ignore")
+
+    # --- Compute rest days properly ---
+    df = df.sort_values(["playerTeam", "gameDate"])
+    df["days_rest"] = df.groupby("playerTeam")["gameDate"].diff().dt.days
+
+    # Create categorical rest bins
+    def assign_rest(days):
+        if pd.isna(days): return "0"
+        if days <= 0: return "0"
+        if days == 1: return "1"
+        if days == 2: return "2"
+        return "3+"
+
+    df["rest_bucket"] = df["days_rest"].apply(assign_rest)
+
+    return df
 
 # No cache so we don't fight stale data while fixing this
-df = load_and_prepare_rest_data()
+df = cached_rest_data()
 
 st.write("DEBUG — Raw gameDate values:", df["gameDate"].head(10).tolist())
 
