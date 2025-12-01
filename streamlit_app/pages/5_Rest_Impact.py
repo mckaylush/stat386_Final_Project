@@ -59,7 +59,7 @@ def cached_rest_data():
     )
 
     # 👉 Parse properly now that it's clean
-    df["gameDate"] = pd.to_datetime(df["gameDate"], format="%Y%m%d", errors="coerce")
+    df["gameDate"] = pd.to_datetime(df["gameDate"], errors="coerce")
 
     # Normalize team names
     team_map = {
@@ -93,8 +93,6 @@ def cached_rest_data():
 
 # No cache so we don't fight stale data while fixing this
 df = cached_rest_data()
-
-st.write("DEBUG — Raw gameDate values:", df["gameDate"].head(10).tolist())
 
 # ---------------------- SIDEBAR FILTERS ----------------------
 teams = sorted(df["playerTeam"].dropna().unique())
