@@ -1,16 +1,18 @@
 import streamlit as st
-import pandas as pd
 import numpy as np
+import pandas as pd
 import matplotlib.pyplot as plt
 
 from nhlRestEffects.data_loader import load_rest_data
 from nhlRestEffects.utils import clean_team_abbrev
-from nhlRestEffects.analysis import rank_rest_sensitivity
+from nhlRestEffects.analysis import summarize_rest_buckets, rank_rest_sensitivity
 
+
+# ---------------------- PAGE SETUP ----------------------
 st.title("⏱️ Rest Impact Analysis")
 
 
-# ---------------------- Load & Preprocess ----------------------
+# ---------------------- DATA LOAD & FIX ----------------------
 @st.cache_data
 def load_prepped_data():
     df = load_rest_data("data/all_teams.csv").copy()
@@ -19,120 +21,112 @@ def load_prepped_data():
     df["playerTeam"] = df["playerTeam"].astype(str).str.strip().str.upper()
     df["playerTeam"] = df["playerTeam"].apply(clean_team_abbrev)
 
-    # --- FIX DATE ---
-    # Extract first 8 digits of gameId -> YYYYMMDD
+    # Extract real date from gameId
     df["gameDate"] = df["gameId"].astype(str).str[:8]
     df["gameDate"] = pd.to_datetime(df["gameDate"], format="%Y%m%d", errors="coerce")
 
-    # Sort and compute rest AFTER fixing date
+    # Sort & compute days rest
     df = df.sort_values(["playerTeam", "gameDate"])
     df["days_rest"] = df.groupby("playerTeam")["gameDate"].diff().dt.days
 
-    # Bucket rest days
+    # Bucket rest into 0 / 1 / 2 / 3+
     def rest_bin(x):
-        if pd.isna(x): return None
-        if x >= 5: return "5+"
-        return str(int(x))
+        if pd.isna(x):
+            return None
+        if x == 0:
+            return "0"
+        if x == 1:
+            return "1"
+        if x == 2:
+            return "2"
+        return "3+"
 
     df["rest_bin"] = df["days_rest"].apply(rest_bin)
 
-    # Ensure numeric fields
+    # Ensure numeric
     df["win"] = pd.to_numeric(df["win"], errors="coerce").fillna(0).astype(int)
     df["xG%"] = pd.to_numeric(df["xG%"], errors="coerce")
 
     return df.dropna(subset=["rest_bin"])
 
+
 df = load_prepped_data()
 
-# ---------------------- Sidebar Filters ----------------------
+
+# ---------------------- SIDEBAR FILTERS ----------------------
 st.sidebar.header("Filters")
 
 teams = sorted(df["playerTeam"].unique())
-seasons = sorted(df["season"].unique())
+seasons = sorted(df["season"].astype(str).unique())
 
-selected_team = st.sidebar.selectbox("Team", ["All Teams"] + teams)
-selected_season = st.sidebar.selectbox("Season", ["All Seasons"] + [str(s) for s in seasons])
+selected_team = st.sidebar.selectbox("Team", ["League-wide"] + teams)
+selected_season = st.sidebar.selectbox("Season", ["All"] + seasons)
 
 
-# ---------------------- Apply Filtering AFTER rest computed ----------------------
+# ---------------------- APPLY FILTERS ----------------------
 filtered_df = df.copy()
 
-if selected_team != "All Teams":
+if selected_team != "League-wide":
     filtered_df = filtered_df[filtered_df["playerTeam"] == selected_team]
 
-if selected_season != "All Seasons":
-    filtered_df = filtered_df[filtered_df["season"] == int(selected_season)]
+if selected_season != "All":
+    filtered_df = filtered_df[filtered_df["season"].astype(str) == selected_season]
 
 
-# Page title context
-title_suffix = (
-    selected_team if selected_team != "All Teams" else "League"
-)
-if selected_season != "All Seasons":
-    title_suffix += f" — {selected_season}"
+# ---------------------- CHART 1: REST vs xG% ----------------------
+st.subheader("📈 Rest vs Expected Goals (xG%)")
 
+summary = summarize_rest_buckets(filtered_df)
 
-# ---------------------- Chart 1: Expected Goals % vs Rest ----------------------
-st.subheader("📈 Expected Goals % by Rest Days")
-
-xg_group = filtered_df.groupby("rest_bin")["xG%"].mean().reset_index()
-
-if xg_group.empty:
-    st.warning("Not enough data to compute xG% trends for this selection.")
+if summary.empty:
+    st.warning("Not enough data to compare rest performance for this selection.")
 else:
-    fig, ax = plt.subplots(figsize=(10, 5))
-    ax.plot(xg_group["rest_bin"], xg_group["xG%"], marker="o", linewidth=2)
+    # Sort bins in correct order
+    order = ["0", "1", "2", "3+"]
+    summary = summary.set_index("rest_bucket").reindex(order).reset_index()
 
-    ax.set_title(f"xG% vs Rest Days — {title_suffix}")
+    fig, ax = plt.subplots(figsize=(8, 4))
+    ax.bar(summary["rest_bucket"], summary["xg_pct"], color="#1f77b4")
+    ax.set_ylabel("xG%")
     ax.set_xlabel("Days of Rest")
-    ax.set_ylabel("Average xG%")
-    ax.grid(alpha=0.3)
-
-    # Baseline line
-    avg = filtered_df["xG%"].mean()
-    ax.axhline(avg, linestyle="--", color="red", alpha=0.6)
-    ax.text(0.1, avg + 0.3, f"Avg: {avg:.1f}%", color="red")
+    ax.set_title("Impact of Rest on Expected Performance")
+    ax.grid(axis="y", alpha=0.3)
 
     st.pyplot(fig)
 
 
-# ---------------------- Chart 2: Win Rate vs Rest ----------------------
-st.subheader("🏆 Win Rate by Rest Days")
+# ---------------------- CHART 2: WIN% VS REST ----------------------
+st.subheader("🏒 Win Rate by Rest Day Category")
 
-win_group = filtered_df.groupby("rest_bin")["win"].mean().reset_index()
+win_chart = filtered_df.groupby("rest_bin")["win"].mean().reset_index()
 
-if win_group.empty:
-    st.warning("Not enough data to calculate win rate.")
+if win_chart.empty:
+    st.warning("Not enough sample to compute win percentages.")
 else:
-    fig2, ax2 = plt.subplots(figsize=(10, 5))
-    ax2.bar(win_group["rest_bin"], win_group["win"], color="#2ca02c")
-    ax2.set_title(f"Win % by Rest — {title_suffix}")
-    ax2.set_xlabel("Days of Rest")
+    win_chart = win_chart.set_index("rest_bin").reindex(["0", "1", "2", "3+"]).reset_index()
+
+    fig2, ax2 = plt.subplots(figsize=(8, 4))
+    ax2.bar(win_chart["rest_bin"], win_chart["win"], color="#2ca02c")
     ax2.set_ylabel("Win %")
+    ax2.set_xlabel("Days of Rest")
+    ax2.set_title("Win Rate by Rest Recovery")
     ax2.grid(axis="y", alpha=0.3)
+
     st.pyplot(fig2)
 
 
-# ---------------------- Summary Narration ----------------------
-if not xg_group.empty and xg_group["xG%"].nunique() > 1:
-    best_rest = xg_group.iloc[xg_group["xG%"].idxmax()]["rest_bin"]
-    worst_rest = xg_group.iloc[xg_group["xG%"].idxmin()]["rest_bin"]
+# ---------------------- RANKING TABLE ----------------------
+st.subheader("📋 Fatigue Sensitivity Ranking")
 
-    st.success(
-        f"Teams perform best after **{best_rest} days of rest**, "
-        f"and struggle most after **{worst_rest} days**."
-    )
+ranking = rank_rest_sensitivity(filtered_df)
 
-
-# ---------------------- League-Wide Sensitivity Table ----------------------
-st.subheader("📋 Fatigue Sensitivity Ranking (League-Wide)")
-
-league_sensitivity = rank_rest_sensitivity(df)
-
-if league_sensitivity.empty:
-    st.warning("Not enough sample size across the league to compute rankings.")
+if ranking.empty:
+    st.warning("Not enough sample size to compute fatigue scores.")
 else:
-    st.dataframe(league_sensitivity.style.format({"fatigue_score": "{:.2f}"}))
+    st.dataframe(ranking.style.format("{:.2f}"))
 
 
-st.caption("📊 Data sourced from MoneyPuck — powered by nhlRestEffects.")
+# ---------------------- FOOTER ----------------------
+st.caption("Data sourced from MoneyPuck — processed using `nhlRestEffects`.")
+
+
