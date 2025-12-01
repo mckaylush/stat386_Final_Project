@@ -4,88 +4,96 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from nhlRestEffects.data_loader import load_rest_data
-from nhlRestEffects.analysis import (
-    assign_rest_bucket,
-    summarize_rest_buckets,
-    rank_rest_sensitivity
-)
+from nhlRestEffects.analysis import rank_rest_sensitivity
 
-st.title("⏱️ Rest Impact Analysis")
+st.title("⏱️ Rest Impact on Team Performance")
 
 @st.cache_data
-def load_clean_rest_data():
+def get_rest_data():
     df = load_rest_data("data/all_teams.csv").copy()
 
-    # ---- Fix Dates ----
+    # Fix and sort
     df["gameDate"] = pd.to_datetime(df["gameDate"], errors="coerce")
-
     df = df.sort_values(["playerTeam", "gameDate"])
     df["days_rest"] = df.groupby("playerTeam")["gameDate"].diff().dt.days
 
-    # ---- Categorize rest into buckets ----
-    df["rest_bucket"] = df["days_rest"].apply(assign_rest_bucket)
+    # Cap rest days like original design
+    df["rest_bin"] = df["days_rest"].apply(lambda x: "5+" if x >= 5 else int(x) if not pd.isna(x) else np.nan)
 
-    # Ensure numeric types exist cleanly
+    # Clean numeric columns
     df["xGoalsPercentage"] = pd.to_numeric(df["xGoalsPercentage"], errors="coerce")
     df["win"] = pd.to_numeric(df["win"], errors="coerce").fillna(0).astype(int)
 
-    return df
+    return df.dropna(subset=["rest_bin"])
 
-df = load_clean_rest_data()
+df = get_rest_data()
 
-# ================================
-# 📈 Expected Goals vs Rest
-# ================================
-st.subheader("📊 Average Expected Goals % by Rest Category")
+# ============================
+# 📈 xG% vs Rest Days
+# ============================
+st.subheader("📊 Expected Goals % by Rest Days")
 
-rest_summary = summarize_rest_buckets(df)
+xg_summary = df.groupby("rest_bin")["xGoalsPercentage"].mean().reset_index()
 
-if rest_summary.empty:
-    st.warning("Not enough data available to calculate rest effects.")
+if xg_summary.empty:
+    st.warning("Not enough data to display xG% trends.")
 else:
-    fig, ax = plt.subplots(figsize=(10, 5))
-    ax.bar(rest_summary["rest_bucket"], rest_summary["xg_pct"], color="#1f77b4")
-    ax.set_ylabel("Average xG%")
-    ax.set_xlabel("Rest Days Category")
-    ax.set_title("Performance Change Relative to Rest")
-    ax.grid(alpha=0.3, axis="y")
+    fig1, ax1 = plt.subplots(figsize=(10, 5))
+    ax1.plot(xg_summary["rest_bin"], xg_summary["xGoalsPercentage"], marker="o", linewidth=2)
+    ax1.set_ylabel("Average xG%")
+    ax1.set_xlabel("Days of Rest")
+    ax1.set_title("xG% Change Based on Rest Days")
+    ax1.grid(alpha=0.3)
 
-    # Draw mean line
-    overall_avg = df["xGoalsPercentage"].mean()
-    ax.axhline(overall_avg, linestyle="--", color="red", alpha=0.7)
-    ax.text(
-        0.1, overall_avg + 0.5,
-        f"League Average ({overall_avg:.1f}%)",
-        color="red"
-    )
+    # league mean line
+    league_avg = df["xGoalsPercentage"].mean()
+    ax1.axhline(league_avg, linestyle="--", color="red", alpha=0.7)
+    ax1.text(0.5, league_avg + 0.3, f"League Avg ({league_avg:.1f}%)", color="red")
 
-    st.pyplot(fig)
+    st.pyplot(fig1)
 
+# ============================
+# 📈 Win % vs Rest Days
+# ============================
+st.subheader("🏆 Win Rate by Rest Days")
 
-# ================================
+win_summary = df.groupby("rest_bin")["win"].mean().reset_index()
+
+if win_summary.empty:
+    st.warning("Not enough data to display win trends.")
+else:
+    fig2, ax2 = plt.subplots(figsize=(10, 5))
+    ax2.bar(win_summary["rest_bin"], win_summary["win"], color="#2ca02c")
+    ax2.set_ylabel("Win Percentage")
+    ax2.set_xlabel("Days of Rest")
+    ax2.set_title("Win Rate Change Based on Rest")
+    ax2.grid(axis="y", alpha=0.3)
+
+    st.pyplot(fig2)
+
+# ============================
 # 🧠 Summary Takeaway
-# ================================
-if not rest_summary.empty:
-    best_bucket = rest_summary.iloc[rest_summary["xg_pct"].idxmax()]["rest_bucket"]
-    worst_bucket = rest_summary.iloc[rest_summary["xg_pct"].idxmin()]["rest_bucket"]
-
+# ============================
+if not xg_summary.empty and not win_summary.empty:
+    best = xg_summary.iloc[xg_summary["xGoalsPercentage"].idxmax()]["rest_bin"]
+    worst = xg_summary.iloc[xg_summary["xGoalsPercentage"].idxmin()]["rest_bin"]
     st.success(
-        f"Teams tend to perform **best** after **{best_bucket}**, and struggle most after **{worst_bucket}**."
+        f"Teams perform **best after {best} days of rest**, and struggle most after **{worst} days**."
     )
 
 
-# ================================
+# ============================
 # 🏒 Fatigue Sensitivity Ranking
-# ================================
-st.subheader("🏒 Teams Most Affected by Fatigue")
+# ============================
+st.subheader("📋 Which Teams Are Most Fatigue-Sensitive?")
 
 ranking = rank_rest_sensitivity(df)
 
 if ranking.empty:
-    st.warning("Not enough data to produce a fatigue ranking.")
+    st.warning("Not enough data to rank fatigue sensitivity.")
 else:
     st.dataframe(
         ranking.style.format({"fatigue_score": "{:.2f}"}).highlight_max("fatigue_score")
     )
 
-st.caption("Data sourced from MoneyPuck + nhlRestEffects")
+st.caption("📊 Data sourced from MoneyPuck.com — processed using nhlRestEffects.")
