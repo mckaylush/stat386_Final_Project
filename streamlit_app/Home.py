@@ -5,12 +5,12 @@ st.set_page_config(page_title="NHL Rest Study", layout="wide")
 st.title("🏒 NHL Rest & Performance Study")
 
 st.markdown("""
-Welcome to the **Stat 386 Final Project Dashboard**, exploring how **rest affects NHL team performance**
-from the 2016–2025 seasons using data from **MoneyPuck.com**.
+Welcome to our **Stat 386 Final Project Dashboard**, exploring how **rest affects NHL team performance**
+from the 2016–2025 seasons using data from **MoneyPuck.com**. This is the final project for McKay Lush and Ethan Clayburn.
 
 ---
 
-### ❓ Research Question  
+### Research Question  
 > **Does playing games with fewer rest days — especially back-to-back games — negatively affect NHL performance?**
 
 This dashboard allows you to interactively explore:
@@ -22,9 +22,9 @@ This dashboard allows you to interactively explore:
 
 ---
 
-### 🚀 How to Use This App
+### How to Use This App
 
-👉 Use the sidebar on the left to select a page:
+Use the sidebar on the left to select a page:
 
 | Page | What it shows |
 |-------|--------------|
@@ -36,11 +36,11 @@ This dashboard allows you to interactively explore:
 
 ---
 
-### 💡 Key Takeaways (so far)
+### Key Takeaways (so far)
 
-- 🟥 Teams tend to underperform on the **second night of a back-to-back**  
-- 🟩 Performance improves after **3–5 days of rest**  
-- 😅 Goalies rarely play back-to-back games — fatigue mostly affects **team defense + shot quality allowed**  
+- Teams tend to underperform on the **second night of a back-to-back**  
+- Performance improves after **3–5 days of rest**  
+- Goalies rarely play back-to-back games — fatigue mostly affects **team defense + shot quality allowed**  
 
 ---
 
