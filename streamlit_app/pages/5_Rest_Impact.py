@@ -111,6 +111,11 @@ summary = (
     .rename(columns={"xG": "Avg_xG"})
 )
 
+st.write("DEBUG — Raw gameDate values:")
+st.write(df["gameDate"].head(10))
+st.write("Dtype:", df["gameDate"].dtype)
+
+
 # Ensure all bins appear even if empty
 rest_order = ["0", "1", "2", "3+"]
 summary = summary.set_index("rest_bucket").reindex(rest_order).fillna(0).reset_index()
