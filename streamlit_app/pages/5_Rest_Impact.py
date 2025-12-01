@@ -69,7 +69,7 @@ if selected_season != "All Seasons":
 
 
 # ---------------------- DEBUG (can enable if needed) ----------------------
-# st.write("Rest bin counts in filtered data: ", filtered_df["rest_bin"].value_counts())
+st.write("Rest bin counts in filtered data: ", filtered_df["rest_bin"].value_counts())
 
 
 # ---------------------- Summary Section ----------------------
