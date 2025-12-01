@@ -12,51 +12,54 @@ st.title("⏱️ Rest Impact Analysis")
 # ---------------------- LOAD & FIX DATA ----------------------
 @st.cache_data
 def load_data():
-    df = load_rest_data("../../data/all_teams.csv").copy()
+    import os
 
-    # ---- FIX DATES (CRITICAL STEP) ----
+    # Build absolute path safely
+    base_dir = os.path.dirname(__file__)   # folder where THIS script lives
+    csv_path = os.path.abspath(os.path.join(base_dir, "..", "..", "data", "all_teams.csv"))
+
+    st.write("📍 Loading CSV from:", csv_path)  # Debug line (leave for now)
+
+    try:
+        df = load_rest_data(csv_path).copy()
+    except Exception as e:
+        st.error(f"❌ Failed to load data: {e}")
+        return pd.DataFrame()
+
+    # ---- Fix date format (YYYYMMDD) ----
     df["gameDate"] = (
         df["gameDate"]
         .astype(str)
-        .str.extract(r"(\d+)")[0]
-        .str.zfill(8)
+        .str.extract(r"(\d{8})")[0]  # Extract exactly 8 digits if embedded
     )
 
     df["gameDate"] = pd.to_datetime(df["gameDate"], format="%Y%m%d", errors="coerce")
 
-    # ---- Clean team names (package method) ----
-    df["playerTeam"] = df["playerTeam"].astype(str).apply(clean_team_abbrev)
+    # ---- Clean team abbreviations ----
+    df["playerTeam"] = df["playerTeam"].astype(str).str.strip().str.upper()
+    df["playerTeam"] = df["playerTeam"].apply(clean_team_abbrev)
 
-    # ---- Expected Goals % column ----
-    df["xG"] = pd.to_numeric(df.get("xGoalsPercentage", None), errors="coerce")
+    # ---- Convert xGoalsPercentage to numeric ----
+    df["xG"] = pd.to_numeric(df["xGoalsPercentage"], errors="coerce")
 
-    # ---- Compute rest ----
+    # ---- Compute rest days ----
     df = df.sort_values(["playerTeam", "gameDate"])
     df["days_rest"] = df.groupby("playerTeam")["gameDate"].diff().dt.days
 
-    # ---- NEW NHL-style rest bucket logic ----
+    # ---- Assign rest buckets (correct NHL logic) ----
     def rest_bucket(days):
-        if pd.isna(days): 
-            return None  # exclude first game
-        
-        if days <= 1: 
-            return "0"     # back-to-back
-        
-        if days == 2:
-            return "1"     # one day rest
-        
-        if days == 3:
-            return "2"     # two days rest
-        
-        return "3+"        # fully rested
+        if pd.isna(days): return None
+        if days <= 1: return "0"
+        if days == 2: return "1"
+        if days == 3: return "2"
+        return "3+"
 
     df["rest_bucket"] = df["days_rest"].apply(rest_bucket)
 
-    # Remove unbucketed rows
+    # Remove rows where rest bucket can't be determined (first games)
     df = df.dropna(subset=["rest_bucket"])
 
     return df
-
 
 df = load_data()
 
