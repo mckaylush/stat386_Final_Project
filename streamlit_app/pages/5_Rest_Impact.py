@@ -67,6 +67,16 @@ def load_data():
 
 df = load_data()
 
+# ---------------------- Metrics for Comparison ----------------------
+metrics = {
+    "xG%": "xG",              # Expected goals % from your dataset
+    "xGF": "xGoalsFor",       # Expected goals for
+    "xGA": "xGoalsAgainst",   # Expected goals against
+    "GF": "goalsFor",         # Actual goals for
+    "GA": "goalsAgainst",     # Actual goals against
+}
+
+
 # ---------------------- Sidebar ----------------------
 teams = sorted(df["playerTeam"].unique())
 seasons = sorted(df["season"].astype(str).unique())
