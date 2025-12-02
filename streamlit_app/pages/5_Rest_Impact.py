@@ -40,6 +40,10 @@ def load_data():
 
 
 df = load_data()
+st.write("🔍 RAW DF PREVIEW:", df.head(20))
+st.write("📌 COLUMN NAMES:", list(df.columns))
+st.write("📊 Missing values:", df.isna().sum())
+
 
 # ---------------------- Check Data ----------------------
 if df.empty:
