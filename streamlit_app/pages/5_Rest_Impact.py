@@ -82,10 +82,6 @@ if selected_season != "All Seasons":
 
 team_df = team_df.dropna(subset=["xG", "rest_bucket"])
 
-# ---------------------- Count display ----------------------
-st.caption(f"Rest bucket counts for {selected_team}")
-st.write(team_df["rest_bucket"].value_counts().sort_index())
-
 # ---------------------- Chart ----------------------
 st.subheader(f"📉 Expected Goals % by Rest Days — {selected_team}")
 
