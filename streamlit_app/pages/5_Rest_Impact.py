@@ -110,20 +110,42 @@ else:
 
     st.pyplot(fig)
 
-# ---------------------- League comparison ----------------------
-st.subheader("📋 Fatigue Sensitivity Ranking")
+# ---------------------- League Comparison (Improved) ----------------------
+st.subheader("📋 Rest Performance Comparison")
 
-league_summary = (
-    df.groupby(["playerTeam", "rest_bucket"])["xG"]
+metrics = {
+    "xG%": "xG",
+    "xGF": "xGoalsFor",
+    "xGA": "xGoalsAgainst",
+    "GF": "goalsFor",
+    "GA": "goalsAgainst",
+}
+
+# Compute selected team stats by rest bucket
+team_stats = (
+    team_df.groupby("rest_bucket")[list(metrics.values())]
     .mean()
-    .unstack()
-    .reindex(columns=rest_order)
-    .fillna(0)
+    .reindex(rest_order)
 )
 
-league_summary["Fatigue Impact (0→3+)"] = league_summary["3+"] - league_summary["0"]
-league_summary = league_summary.sort_values("Fatigue Impact (0→3+)")
+# Compute league averages for comparison
+league_stats = (
+    df.groupby("rest_bucket")[list(metrics.values())]
+    .mean()
+    .reindex(rest_order)
+)
 
-st.dataframe(league_summary.style.format("{:.3f}"))
+# Rename rows for clarity
+team_stats.index = [f"{selected_team} ({r})" for r in rest_order]
+league_stats.index = [f"League Avg ({r})" for r in rest_order]
+
+comparison_df = pd.concat([team_stats, league_stats])
+
+# Rename columns to clean labels
+comparison_df = comparison_df.rename(columns={v: k for k, v in metrics.items()})
+
+# Display table
+st.dataframe(comparison_df.style.format("{:.2f}"))
+
 
 st.caption("📊 Data sourced from MoneyPuck.com — Powered by nhlRestEffects.")
