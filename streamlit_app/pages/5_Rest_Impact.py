@@ -120,70 +120,71 @@ else:
 
     st.pyplot(fig)
 
-# ---------------------- Comparison Chart (stacked/grouped) ----------------------
-st.subheader(f"📊 Rest Effect Comparison — {selected_team} vs League")
+# ---------------------- League + Team Comparison Chart ----------------------
+st.subheader("📊 Team vs League — Metric Breakdown by Rest Days")
 
-if team_df.empty:
-    st.warning("⚠️ Not enough data to render comparison chart.")
+# Build league average dataset
+league_avg = (
+    df.groupby("rest_bucket")[list(metrics.values())]
+    .mean()
+    .reset_index()
+)
+league_avg["Group"] = "League Avg"
+
+# Build team-specific dataset
+team_values = (
+    team_df.groupby("rest_bucket")[list(metrics.values())]
+    .mean()
+    .reset_index()
+)
+team_values["Group"] = selected_team
+
+# Combine
+plot_df = pd.concat([team_values, league_avg], ignore_index=True)
+
+# Rename rest bucket and metric names
+plot_df["rest_bucket"] = plot_df["rest_bucket"].astype(str)
+plot_df.rename(columns=metrics, inplace=True)
+
+# Melt long format for plotting
+long_df = plot_df.melt(
+    id_vars=["rest_bucket", "Group"],
+    var_name="Metric",
+    value_name="Value"
+)
+
+# Debug visibility
+st.write("🔍 DEBUG — Chart Data Preview:", long_df.head())
+
+# Ensure ordering
+long_df["rest_bucket"] = pd.Categorical(long_df["rest_bucket"], categories=rest_order, ordered=True)
+
+if long_df.empty:
+    st.warning("⚠️ Not enough data to build comparison chart.")
 else:
-    # Compute values
-    team_summary = (
-        team_df.groupby("rest_bucket")[list(metrics.values())]
-        .mean()
-        .reindex(rest_order)
-    )
-    league_summary = (
-        df.groupby("rest_bucket")[list(metrics.values())]
-        .mean()
-        .reindex(rest_order)
-    )
-
-    # Create a pivoted structure for plotting
-    plot_df = pd.DataFrame()
-
-    for metric_name, col in metrics.items():
-        for group, source in zip([selected_team, "League Avg"], [team_summary, league_summary]):
-            temp = source[col].reset_index()
-            temp["Metric"] = metric_name
-            temp["Group"] = group
-            plot_df = pd.concat([plot_df, temp])
-
-    # Now pivot so we can plot correctly
-    pivot = plot_df.pivot_table(
+    # Pivot for chart layout: Metric → Row grouping
+    pivot = long_df.pivot_table(
         index=["Metric", "Group"],
         columns="rest_bucket",
-        values=0,
+        values="Value",
         aggfunc="mean"
     ).reindex(columns=rest_order)
 
-    # Plot
-    fig, ax = plt.subplots(figsize=(12, 6))
+    st.write("📋 Comparison Table", pivot.style.format("{:.2f}"))
 
-    # Offsets for side-by-side bars
-    x = np.arange(len(rest_order))
-    width = 0.35
+    # ---------------------- Heatmap-like chart ----------------------
+    fig, ax = plt.subplots(figsize=(11, 6))
 
-    for i, metric in enumerate(metrics.keys()):
-        subset = pivot.loc[metric]
+    im = ax.imshow(pivot, cmap="coolwarm")
 
-        ax.bar(x - width/2, subset.loc[selected_team].values, width, 
-               label=f"{metric} — {selected_team}", alpha=0.85)
-        ax.bar(x + width/2, subset.loc["League Avg"].values, width, 
-               label=f"{metric} — League Avg", alpha=0.4)
-
-        # Label bars
-        for idx, value in enumerate(subset.loc[selected_team].values):
-            ax.text(x[idx] - width/2, value, f"{value:.2f}", ha='center', fontsize=8)
-
-        for idx, value in enumerate(subset.loc["League Avg"].values):
-            ax.text(x[idx] + width/2, value, f"{value:.2f}", ha='center', fontsize=8)
-
-    ax.set_xticks(x)
+    ax.set_xticks(range(len(rest_order)))
     ax.set_xticklabels(rest_order)
-    ax.set_ylabel("Value")
-    ax.set_xlabel("Rest Days")
-    ax.set_title(f"{selected_team} vs League — Performance by Rest Days")
-    ax.legend(fontsize=8, ncol=2)
+
+    ax.set_yticks(range(len(pivot.index)))
+    ax.set_yticklabels([f"{idx[0]} — {idx[1]}" for idx in pivot.index])
+
+    plt.colorbar(im, ax=ax)
+    ax.set_title(f"{selected_team} vs League — Metric Strength by Rest Days")
 
     st.pyplot(fig)
 
