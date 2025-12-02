@@ -25,19 +25,15 @@ def load_data():
     except Exception as e:
         st.error(f"❌ Failed to load data: {e}")
         return pd.DataFrame()
-    st.write("RAW DataFrame shape:", df.shape)
-    st.write(df.head())
+
 
     # ---- Fix date format (YYYYMMDD) ----
     df["gameDate"] = (
         df["gameDate"]
         .astype(str)
-        .str.extract(r"(\d{8})")[0]  # Extract exactly 8 digits if embedded
     )
 
     df["gameDate"] = pd.to_datetime(df["gameDate"], format="%Y%m%d", errors="coerce")
-    st.write("After date parse:", df["gameDate"].head(10).tolist())
-    st.write("NaT count:", df["gameDate"].isna().sum())
 
 
     # ---- Clean team abbreviations ----
