@@ -13,6 +13,10 @@ st.title("⏱️ Rest Impact Analysis")
 def load_data():
     df = load_rest_data("data/all_teams.csv").copy()
 
+    st.write("📌 RAW COLUMNS FROM PACKAGE:", df.columns.tolist())
+    st.dataframe(df.head())
+
+
     # ------------------ FIX DATE PARSING ------------------
     df["gameDate"] = (
         df["gameDate"]
