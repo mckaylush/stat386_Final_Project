@@ -22,7 +22,20 @@ def load_data():
     df["gameDate"] = pd.to_datetime(df["gameDate"], format="%Y%m%d", errors="coerce")
 
     # --- Clean team abbreviations ---
-    df["playerTeam"] = df["playerTeam"].astype(str).apply(clean_team_abbrev)
+    df["playerTeam"] = (
+        df["playerTeam"]
+        .astype(str)
+        .str.upper()
+        .str.strip()
+        .apply(clean_team_abbrev)
+    )
+    
+    # 🔧 Final hard override to merge stray abbreviations:
+    team_fix = {
+        "LA": "LAK", "L.A.": "LAK", "LOS": "LAK", "LA KINGS": "LAK",
+        "TB": "TBL", "T.B.": "TBL", "TAM": "TBL", "TAMPA BAY": "TBL"
+    }
+    df["playerTeam"] = df["playerTeam"].replace(team_fix)
 
     # --- Use correct xG% metric ---
     if "xG%" in df.columns:
