@@ -1,6 +1,6 @@
 import streamlit as st
-import pandas as pd
 import numpy as np
+import pandas as pd
 import matplotlib.pyplot as plt
 
 from nhlRestEffects.data_loader import load_rest_data
@@ -8,133 +8,136 @@ from nhlRestEffects.utils import clean_team_abbrev
 
 st.title("⏱️ Rest Impact Analysis")
 
+# ---------------------- LOAD & PREP DATA ----------------------
+def load_and_prepare_rest_data():
+    # Load from your CSV via the package
+    df = load_rest_data("data/all_teams.csv").copy()
 
-# ---------------------- LOAD & FIX DATA ----------------------
-@st.cache_data
-def load_data():
-    import os
-
-    # Build absolute path safely
-    base_dir = os.path.dirname(__file__)   # folder where THIS script lives
-    csv_path = os.path.abspath(os.path.join(base_dir, "..", "..", "data", "all_teams.csv"))
-
-    st.write("📍 Loading CSV from:", csv_path)  # Debug line (leave for now)
-
-    try:
-        df = load_rest_data(csv_path).copy()
-    except Exception as e:
-        st.error(f"❌ Failed to load data: {e}")
-        return pd.DataFrame()
-
-
-    # ---- Fix date format (YYYYMMDD) ----
-    df["gameDate"] = (
-        df["gameDate"]
-        .astype(str)
+    # 1) Parse gameDate: values like 20151007 (YYYYMMDD)
+    df["gameDate"] = pd.to_datetime(
+        df["gameDate"].astype(str),
+        format="%Y%m%d",
+        errors="coerce"
     )
 
-    df["gameDate"] = pd.to_datetime(df["gameDate"], format="%Y%m%d", errors="coerce")
-
-
-    # ---- Clean team abbreviations ----
-    df["playerTeam"] = df["playerTeam"].astype(str).str.strip().str.upper()
+    # 2) Clean team abbreviations (handles LA/LAK, TB/TBL, etc.)
+    df["playerTeam"] = df["playerTeam"].astype(str).str.strip()
     df["playerTeam"] = df["playerTeam"].apply(clean_team_abbrev)
 
-    # ---- Convert xGoalsPercentage to numeric ----
+    # 3) Expected goals % column (from your header: xGoalsPercentage)
     df["xG"] = pd.to_numeric(df["xGoalsPercentage"], errors="coerce")
 
-    # ---- Compute rest days ----
+    # 4) Sort and compute days of rest per team (x1 - previous game date x2)
     df = df.sort_values(["playerTeam", "gameDate"])
     df["days_rest"] = df.groupby("playerTeam")["gameDate"].diff().dt.days
 
-    # ---- Assign rest buckets (correct NHL logic) ----
+    # 5) Bin rest days into 0, 1, 2, 3+  (leave NaN as NaN)
     def rest_bucket(days):
-        if pd.isna(days): return None
-        if days <= 1: return "0"
-        if days == 2: return "1"
-        if days == 3: return "2"
+        if pd.isna(days):
+            return np.nan
+        if days <= 0:
+            return "0"
+        if days == 1:
+            return "1"
+        if days == 2:
+            return "2"
         return "3+"
 
     df["rest_bucket"] = df["days_rest"].apply(rest_bucket)
 
-    # Remove rows where rest bucket can't be determined (first games)
-    df = df.dropna(subset=["rest_bucket"])
-
     return df
 
-df = load_data()
 
+# No cache so we don't fight stale data while fixing this
+df = load_and_prepare_rest_data()
 
-# ---------------------- Sidebar filters ----------------------
-teams = sorted(df["playerTeam"].unique())
+# ---------------------- SIDEBAR FILTERS ----------------------
+teams = sorted(df["playerTeam"].dropna().unique())
 seasons = sorted(df["season"].astype(str).unique())
 
 selected_team = st.sidebar.selectbox("Select Team", teams)
 selected_season = st.sidebar.selectbox("Season", ["All Seasons"] + seasons)
 
-
-# ---------------------- Filter team view ----------------------
+# ---------------------- FILTER DATA ----------------------
 team_df = df[df["playerTeam"] == selected_team].copy()
 
 if selected_season != "All Seasons":
     team_df = team_df[team_df["season"].astype(str) == selected_season]
 
-team_df = team_df.dropna(subset=["xG"])
+# Drop rows without xG or rest bucket
+team_df = team_df.dropna(subset=["xG", "rest_bucket"])
 
-
-# ---------------------- Debug count ----------------------
-st.caption(f"Rest bucket counts for {selected_team}")
+# ---------------------- DEBUG: SHOW REST BUCKET COUNTS ----------------------
+st.caption(
+    f"Rest bucket counts for {selected_team}"
+    + (f" in {selected_season}" if selected_season != "All Seasons" else "")
+)
 st.write(team_df["rest_bucket"].value_counts().sort_index())
 
-
-# ---------------------- Plot Expected Goals by Rest ----------------------
+# ---------------------- PLOT: xG% BY REST ----------------------
 st.subheader(f"📉 Expected Goals % by Rest Days — {selected_team}")
 
 rest_order = ["0", "1", "2", "3+"]
 
 if team_df.empty:
-    st.warning("Not enough data.")
+    st.warning("⚠️ Not enough data for this team/season selection.")
 else:
     summary = (
-        team_df.groupby("rest_bucket")["xG"]
+        team_df
+        .groupby("rest_bucket")["xG"]
         .mean()
         .reindex(rest_order)
-        .fillna(0)
     )
 
-    fig, ax = plt.subplots(figsize=(10, 4))
-    ax.bar(rest_order, summary.values, edgecolor="black")
+    if summary.isna().all():
+        st.warning("⚠️ No valid xG data to display for this selection.")
+    else:
+        summary = summary.fillna(0)
 
-    for label, value in zip(rest_order, summary.values):
-        ax.text(label, value + 0.01, f"{value:.2f}", ha="center")
+        fig, ax = plt.subplots(figsize=(10, 4))
+        bars = ax.bar(rest_order, summary.values, edgecolor="black")
 
-    ax.axhline(summary.mean(), linestyle="--", color="red", alpha=0.5)
-    ax.set_ylabel("Avg Expected Goals %")
-    ax.set_xlabel("Rest Days")
-    ax.set_title(f"{selected_team} — Rest Impact ({selected_season})")
+        for x, height in zip(rest_order, summary.values):
+            ax.text(x, height + 0.01, f"{height:.2f}", ha="center", fontsize=10)
 
-    st.pyplot(fig)
+        ax.set_ylabel("Avg Expected Goals %")
+        ax.set_xlabel("Rest Days")
 
+        title_suffix = (
+            f"{selected_team} — {selected_season}"
+            if selected_season != "All Seasons"
+            else selected_team
+        )
+        ax.set_title(f"{title_suffix}: Expected Goals % by Rest Level")
 
-# ---------------------- League-wide fatigue ranking ----------------------
+        avg_line = summary.mean()
+        ax.axhline(avg_line, linestyle="--", color="red", alpha=0.5)
+
+        st.pyplot(fig)
+
+# ---------------------- LEAGUE-WIDE FATIGUE RANKING ----------------------
 st.subheader("📋 Fatigue Sensitivity Ranking (League-wide)")
 
-league_df = df.dropna(subset=["xG"])
+league_df = df.dropna(subset=["xG", "rest_bucket"]).copy()
 
 if league_df.empty:
-    st.warning("No league-wide data.")
+    st.warning("No league-wide data available for fatigue ranking.")
 else:
     league_summary = (
-        league_df.groupby(["playerTeam", "rest_bucket"])["xG"]
+        league_df
+        .groupby(["playerTeam", "rest_bucket"])["xG"]
         .mean()
-        .unstack()
+        .unstack("rest_bucket")
         .reindex(columns=rest_order)
         .fillna(0)
     )
 
-    league_summary["Fatigue Impact (0 → 3+)"] = league_summary["3+"] - league_summary["0"]
+    league_summary["Fatigue Impact (0 → 3+)"] = (
+        league_summary["3+"] - league_summary["0"]
+    )
+
     league_summary = league_summary.sort_values("Fatigue Impact (0 → 3+)")
 
     st.dataframe(league_summary.style.format("{:.3f}"))
 
-st.caption("📊 Data sourced from MoneyPuck.com — Powered by nhlRestEffects.")
+st.caption("📊 Data sourced from MoneyPuck.com — Analysis powered by `nhlRestEffects`.")
