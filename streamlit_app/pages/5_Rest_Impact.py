@@ -110,42 +110,72 @@ else:
 
     st.pyplot(fig)
 
-# ---------------------- League Comparison (Improved) ----------------------
-st.subheader("📋 Rest Performance Comparison")
+# ---------------------- Comparison Chart (stacked/grouped) ----------------------
+st.subheader(f"📊 Rest Effect Comparison — {selected_team} vs League")
 
-metrics = {
-    "xG%": "xG",
-    "xGF": "xGoalsFor",
-    "xGA": "xGoalsAgainst",
-    "GF": "goalsFor",
-    "GA": "goalsAgainst",
-}
+if team_df.empty:
+    st.warning("⚠️ Not enough data to render comparison chart.")
+else:
+    # Compute values
+    team_summary = (
+        team_df.groupby("rest_bucket")[list(metrics.values())]
+        .mean()
+        .reindex(rest_order)
+    )
+    league_summary = (
+        df.groupby("rest_bucket")[list(metrics.values())]
+        .mean()
+        .reindex(rest_order)
+    )
 
-# Compute selected team stats by rest bucket
-team_stats = (
-    team_df.groupby("rest_bucket")[list(metrics.values())]
-    .mean()
-    .reindex(rest_order)
-)
+    # Create a pivoted structure for plotting
+    plot_df = pd.DataFrame()
 
-# Compute league averages for comparison
-league_stats = (
-    df.groupby("rest_bucket")[list(metrics.values())]
-    .mean()
-    .reindex(rest_order)
-)
+    for metric_name, col in metrics.items():
+        for group, source in zip([selected_team, "League Avg"], [team_summary, league_summary]):
+            temp = source[col].reset_index()
+            temp["Metric"] = metric_name
+            temp["Group"] = group
+            plot_df = pd.concat([plot_df, temp])
 
-# Rename rows for clarity
-team_stats.index = [f"{selected_team} ({r})" for r in rest_order]
-league_stats.index = [f"League Avg ({r})" for r in rest_order]
+    # Now pivot so we can plot correctly
+    pivot = plot_df.pivot_table(
+        index=["Metric", "Group"],
+        columns="rest_bucket",
+        values=0,
+        aggfunc="mean"
+    ).reindex(columns=rest_order)
 
-comparison_df = pd.concat([team_stats, league_stats])
+    # Plot
+    fig, ax = plt.subplots(figsize=(12, 6))
 
-# Rename columns to clean labels
-comparison_df = comparison_df.rename(columns={v: k for k, v in metrics.items()})
+    # Offsets for side-by-side bars
+    x = np.arange(len(rest_order))
+    width = 0.35
 
-# Display table
-st.dataframe(comparison_df.style.format("{:.2f}"))
+    for i, metric in enumerate(metrics.keys()):
+        subset = pivot.loc[metric]
+
+        ax.bar(x - width/2, subset.loc[selected_team].values, width, 
+               label=f"{metric} — {selected_team}", alpha=0.85)
+        ax.bar(x + width/2, subset.loc["League Avg"].values, width, 
+               label=f"{metric} — League Avg", alpha=0.4)
+
+        # Label bars
+        for idx, value in enumerate(subset.loc[selected_team].values):
+            ax.text(x[idx] - width/2, value, f"{value:.2f}", ha='center', fontsize=8)
+
+        for idx, value in enumerate(subset.loc["League Avg"].values):
+            ax.text(x[idx] + width/2, value, f"{value:.2f}", ha='center', fontsize=8)
+
+    ax.set_xticks(x)
+    ax.set_xticklabels(rest_order)
+    ax.set_ylabel("Value")
+    ax.set_xlabel("Rest Days")
+    ax.set_title(f"{selected_team} vs League — Performance by Rest Days")
+    ax.legend(fontsize=8, ncol=2)
+
+    st.pyplot(fig)
 
 
 st.caption("📊 Data sourced from MoneyPuck.com — Powered by nhlRestEffects.")
