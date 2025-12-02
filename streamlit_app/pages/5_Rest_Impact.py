@@ -10,7 +10,7 @@ st.title("⏱️ Rest Impact Analysis")
 @st.cache_data
 def load_data():
     try:
-        df = load_rest_data("../../data/all_teams.csv").copy()
+        df = load_rest_data("data/all_teams.csv").copy()
     except Exception as e:
         st.error(f"❌ Could not load file: {e}")
         return pd.DataFrame()
