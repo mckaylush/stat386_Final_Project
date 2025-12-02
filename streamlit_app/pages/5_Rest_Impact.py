@@ -25,6 +25,8 @@ def load_data():
     except Exception as e:
         st.error(f"❌ Failed to load data: {e}")
         return pd.DataFrame()
+    st.write("RAW DataFrame shape:", df.shape)
+    st.write(df.head())
 
     # ---- Fix date format (YYYYMMDD) ----
     df["gameDate"] = (
