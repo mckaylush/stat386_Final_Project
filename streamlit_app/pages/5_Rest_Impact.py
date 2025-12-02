@@ -92,7 +92,7 @@ else:
     ax.bar(rest_order, summary.values, edgecolor="black")
 
     for x, val in zip(rest_order, summary.values):
-        ax.text(x, val + .1, f"{val:.2f}", ha="center")
+        ax.text(x, val + .015, f"{val:.2f}", ha="center")
 
     ax.axhline(summary.mean(), linestyle="--", color="red", alpha=0.5)
     ax.set_ylabel("Avg Expected Goals %")
