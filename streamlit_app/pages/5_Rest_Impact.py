@@ -36,6 +36,9 @@ def load_data():
     )
 
     df["gameDate"] = pd.to_datetime(df["gameDate"], format="%Y%m%d", errors="coerce")
+    st.write("After date parse:", df["gameDate"].head(10).tolist())
+    st.write("NaT count:", df["gameDate"].isna().sum())
+
 
     # ---- Clean team abbreviations ----
     df["playerTeam"] = df["playerTeam"].astype(str).str.strip().str.upper()
