@@ -153,9 +153,6 @@ long_df = plot_df.melt(
     value_name="Value"
 )
 
-# Debug visibility
-st.write("🔍 DEBUG — Chart Data Preview:", long_df.head())
-
 # Ensure ordering
 long_df["rest_bucket"] = pd.Categorical(long_df["rest_bucket"], categories=rest_order, ordered=True)
 
