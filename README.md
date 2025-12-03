@@ -114,15 +114,11 @@ If you find an issue, please open a bug report describing:
 
 ---
 
-📄 License
-
-This project is licensed under the MIT License.
-
 ---
 
 🧊 Credits
 
-Created by Ethan Clayburn for STAT 386 — Data Acquisition & Analytics.
+Created by Ethan Clayburn and McKay Lush for STAT 386 — Data Acquisition & Analytics.
 
 
 
