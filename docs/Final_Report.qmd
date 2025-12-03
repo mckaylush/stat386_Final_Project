@@ -13,7 +13,7 @@ format:
   pdf:
     toc: true
     number-sections: true
-date: "December 2024"
+date: "December 2025"
 ---
 
 # 1. Introduction
