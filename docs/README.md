@@ -98,13 +98,13 @@ streamlit run streamlit_app/Home.py
 
 ---
 
-Tutorial
+# Tutorial
 
 📘 Tutorial: How to Analyze NHL Rest Effects with nhlRestEffects
 
 This tutorial walks through a complete analytics workflow using nhlRestEffects, from loading MoneyPuck data to visualizing rest-day performance trends. No prior setup is required beyond installing the package.
 
-1️⃣ Load the Data
+## 1️⃣ Load the Data
 
 nhlRestEffects makes it easy to import and clean MoneyPuck team-level game data:
 ```python
@@ -127,7 +127,7 @@ This automatically:
 
 - Calculates rest days and assigns rest buckets
 
-2️⃣ Understanding Rest Buckets
+## 2️⃣ Understanding Rest Buckets
 
 The package converts raw rest_days into NHL-style rest categories:
 
@@ -145,7 +145,7 @@ To see how these are created:
 df[["playerTeam", "gameDate", "rest_days", "rest_bucket"]].head()
 ```
 
-3️⃣ Summarize Team Performance by Rest Level
+## 3️⃣ Summarize Team Performance by Rest Level
 
 Use the built-in summarizer to compare how a team performs at each rest level:
 
@@ -180,7 +180,7 @@ Example output:
 | 2           | 52.1 | 2.91      | 2.55          |
 | 3+          | 53.4 | 3.03      | 2.44          |
 
-4️⃣ League-Wide Fatigue Sensitivity
+## 4️⃣ League-Wide Fatigue Sensitivity
 
 Which teams suffer the most on low rest?
 The package includes a ranking helper:
@@ -201,7 +201,7 @@ fatigue_score = xG%(3+ rest) − xG%(0 rest)
 Teams with negative scores struggle in back-to-backs.
 Teams with positive scores maintain performance under fatigue.
 
-5️⃣ Visualizing Rest-Day Performance
+## 5️⃣ Visualizing Rest-Day Performance
 
 The easiest way to generate a rest-bucket chart is with the visualization module:
 
@@ -219,7 +219,7 @@ This chart includes:
 
 - Clean labels and color palette
 
-6️⃣ Back-to-Back Game Analysis
+## 6️⃣ Back-to-Back Game Analysis
 
 You can extract paired games from a back-to-back set:
 
@@ -246,7 +246,7 @@ Result shows:
 | B2B Game 1 | 51.2 | 2.89      | 2.74          |
 | B2B Game 2 | 47.8 | 2.33      | 3.22          |
 
-7️⃣ Working With a Specific Season
+## 7️⃣ Working With a Specific Season
 
 To filter for a single year:
 
@@ -266,7 +266,7 @@ team_season_df = df[
 
 Then you can run all the same summary functions on this subset.
 
-8️⃣ Running the Streamlit Dashboard
+## 8️⃣ Running the Streamlit Dashboard
 
 The repository comes with a full interactive application built on the package.
 
@@ -286,7 +286,7 @@ The dashboard includes:
 
 All powered by the same functions demonstrated above.
 
-9️⃣ Full Example Workflow
+## 9️⃣ Full Example Workflow
 
 Here is a complete pipeline from start to finish:
 
@@ -316,7 +316,7 @@ b2b = summarize_back_to_backs(team_df)
 plot_rest_performance(df, team=team)
 ```
 
-✅ Summary
+## ✅ Summary
 
 With nhlRestEffects, you can:
 
@@ -334,7 +334,7 @@ This tutorial provides all the essential tools to replicate & extend the analysi
 
 --- 
 
-🤝 Contributing
+## 🤝 Contributing
 
 Pull requests are welcome!
 If you find an issue, please open a bug report describing:
@@ -344,7 +344,8 @@ If you find an issue, please open a bug report describing:
 
 ---
 
-📚 Roadmap
+## 📚 Roadmap
+
 	•	☐ Publish to PyPI
 	•	☐ Add CLI commands (e.g., nhlrest --team TBL)
 	•	☐ Add predictive modeling (rest effect regression)
@@ -352,7 +353,7 @@ If you find an issue, please open a bug report describing:
 
 ---
 
-🧊 Credits
+## 🧊 Credits
 
 Created by Ethan Clayburn and McKay Lush for STAT 386 — Data Acquisition & Analytics.
 
