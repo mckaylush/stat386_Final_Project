@@ -114,8 +114,6 @@ If you find an issue, please open a bug report describing:
 
 ---
 
----
-
 🧊 Credits
 
 Created by Ethan Clayburn and McKay Lush for STAT 386 — Data Acquisition & Analytics.
