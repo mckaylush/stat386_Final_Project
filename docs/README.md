@@ -337,7 +337,7 @@ This tutorial provides all the essential tools to replicate & extend the analysi
 ## Project Report
 
 You can read the full report here:  
-[📄 Final Report](https://emclayburn.github.io/stat286_Final_Project/docs/Final_Report.html)
+[📄 Final Report](https://emclayburn.github.io/stat386_Final_Project/docs/Final_Report.html)
 
 --- 
 
