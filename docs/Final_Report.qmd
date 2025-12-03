@@ -1,366 +1,498 @@
----
-title: "Analyzing NHL Rest & Fatigue Effects Using Automated Analytics Tools"
-subtitle: "STAT 386 — Final Project Report"
-author:
-  - "Ethan Clayburn"
-  - "McKay Lush"
-format:
-  html:
-    theme: cosmo
-    toc: true
-    toc-depth: 4
-    number-sections: true
-  pdf:
-    toc: true
-    number-sections: true
-date: "December 2025"
----
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Analyzing NHL Rest &amp; Fatigue Effects Using Automated Analytics Tools</title>
+</head>
+<body>
 
-# 1. Introduction
+<h1>Analyzing NHL Rest &amp; Fatigue Effects Using Automated Analytics Tools</h1>
+<h2>STAT 386 — Final Project Report</h2>
+<p><strong>Authors:</strong> Ethan Clayburn &amp; McKay Lush<br>
+<strong>Date:</strong> December 2025</p>
 
-## 1.1 Motivation
+<h1>1. Introduction</h1>
 
-Rest and fatigue play a major role in professional sports performance, and the NHL is no exception. Teams routinely play back‑to‑back games, long road trips, and compressed scheduling sequences that can influence scoring, defensive sharpness, and overall win probability.
+<h2>1.1 Motivation</h2>
 
-Despite the clear competitive impact, the NHL offers no official metric that quantifies rest or fatigue. Analysts must therefore calculate their own rest‑based metrics using game schedules and performance data.
+<p>
+Rest and fatigue play a major role in professional sports performance, and the NHL is no exception.
+Teams routinely play back‑to‑back games, long road trips, and compressed scheduling sequences that
+can influence scoring, defensive sharpness, and overall win probability.
+</p>
 
-Understanding rest effects enables:
+<p>
+Despite the clear competitive impact, the NHL offers no official metric that quantifies rest or fatigue.
+Analysts must therefore calculate their own rest‑based metrics using game schedules and performance data.
+</p>
 
-- Better performance modeling  
-- More accurate expected goals (xG%) trends  
-- Competitive balance analysis  
-- Stronger analytics for coaches, fans, and sports bettors  
+<p>Understanding rest effects enables:</p>
+<ul>
+  <li>Better performance modeling</li>
+  <li>More accurate expected goals (xG%) trends</li>
+  <li>Competitive balance analysis</li>
+  <li>Stronger analytics for coaches, fans, and sports bettors</li>
+</ul>
 
-This project develops an end‑to‑end analytical workflow to measure these effects automatically.
+<p>This project develops an end‑to‑end analytical workflow to measure these effects automatically.</p>
 
-## 1.2 Project Goals
+<h2>1.2 Project Goals</h2>
 
-This project was designed to meet four main goals:
+<p>This project was designed to meet four main goals:</p>
 
-1. Build a Python package, **`nhlRestEffects`**, that:
-   - Loads NHL game data  
-   - Cleans team names, dates, and xG metrics  
-   - Computes rest days between games  
-   - Assigns rest buckets (0, 1, 2, 3+ days)  
-   - Summarizes rest‑based performance differences  
+<ol>
+  <li>
+    Build a Python package, <strong><code>nhlRestEffects</code></strong>, that:
+    <ul>
+      <li>Loads NHL game data</li>
+      <li>Cleans team names, dates, and xG metrics</li>
+      <li>Computes rest days between games</li>
+      <li>Assigns rest buckets (0, 1, 2, 3+ days)</li>
+      <li>Summarizes rest‑based performance differences</li>
+    </ul>
+  </li>
+  <li>
+    Build a <strong>Streamlit multi‑page analytics dashboard</strong> that visualizes:
+    <ul>
+      <li>Team‑level rolling performance</li>
+      <li>League‑wide rest effects</li>
+      <li>Back‑to‑back (B2B) performance</li>
+      <li>Goalie comparison analytics</li>
+    </ul>
+  </li>
+  <li>Publish clear <strong>documentation</strong> and demonstrate reproducible workflows.</li>
+  <li>Write a polished report summarizing our work, results, and insights.</li>
+</ol>
 
-2. Build a **Streamlit multi‑page analytics dashboard** that visualizes:
-   - Team‑level rolling performance  
-   - League‑wide rest effects  
-   - Back‑to‑back (B2B) performance  
-   - Goalie comparison analytics  
+<h2>1.3 Deliverables</h2>
 
-3. Publish clear **documentation** and demonstrate reproducible workflows.
+<ul>
+  <li><code>nhlRestEffects</code> Python package (GitHub)</li>
+  <li>Streamlit deployment with multiple analytic pages</li>
+  <li>GitHub Pages site (package documentation and examples)</li>
+  <li>This written report</li>
+</ul>
 
-4. Write a polished report summarizing our work, results, and insights.
+<h1>2. Data Acquisition &amp; Cleaning</h1>
 
-## 1.3 Deliverables
+<h2>2.1 Data Source</h2>
 
-- `nhlRestEffects` Python package (GitHub)  
-- Streamlit deployment with multiple analytic pages  
-- GitHub Pages site (package documentation and examples)  
-- This written report  
+<p>All data originates from <strong>MoneyPuck.com</strong>, which provides detailed NHL game‑level datasets including:</p>
 
-# 2. Data Acquisition & Cleaning
+<ul>
+  <li>Expected goals (xG)</li>
+  <li>Shot attempts</li>
+  <li>Goals for and against</li>
+  <li>Situational splits</li>
+  <li>Team and season identifiers</li>
+  <li>Game dates</li>
+</ul>
 
-## 2.1 Data Source
+<p>We downloaded team‑level data for 2016–present and stored it in:</p>
 
-All data originates from **MoneyPuck.com**, which provides detailed NHL game‑level datasets including:
+<p><code>data/all_teams.csv</code></p>
 
-- Expected goals (xG)  
-- Shot attempts  
-- Goals for and against  
-- Situational splits  
-- Team and season identifiers  
-- Game dates  
+<h2>2.2 Cleaning Steps</h2>
 
-We downloaded team‑level data for 2016–present and stored it in:
+<p>The raw dataset required substantial normalization before analysis. Our package performs the following tasks.</p>
 
-`data/all_teams.csv`
+<h3>2.2.1 Team Name Standardization</h3>
 
-## 2.2 Cleaning Steps
+<p>MoneyPuck’s exports contain inconsistent abbreviations. For example:</p>
 
-The raw dataset required substantial normalization before analysis. Our package performs the following tasks.
+<ul>
+  <li><code>LA</code>, <code>L.A.</code>, <code>LOS</code>, <code>LA KINGS</code> → <code>LAK</code></li>
+  <li><code>TB</code>, <code>T.B.</code>, <code>TAM</code> → <code>TBL</code></li>
+</ul>
 
-### 2.2.1 Team Name Standardization
+<p>
+To handle this, we standardize all team identifiers to uppercase and then apply a mapping so that
+each franchise is represented by a single abbreviation. This prevents teams from accidentally being
+split across multiple labels in group‑by operations.
+</p>
 
-MoneyPuck’s exports contain inconsistent abbreviations. For example:
+<h3>2.2.2 Date Cleaning</h3>
 
-- `LA`, `L.A.`, `LOS`, `LA KINGS` → `LAK`  
-- `TB`, `T.B.`, `TAM` → `TBL`  
+<p>Game dates appear in a mix of formats, including Unix timestamps and plain strings. Our loader function:</p>
 
-To handle this, we standardize all team identifiers to uppercase and then apply a mapping so that each franchise is represented by a single abbreviation. This prevents teams from accidentally being split across multiple labels in group‑by operations.
+<ul>
+  <li>Detects whether <code>gameDate</code> is numeric or string</li>
+  <li>Converts numeric values using <code>pandas.to_datetime</code> with the correct unit</li>
+  <li>Parses string dates with <code>errors="coerce"</code> to handle irregularities</li>
+  <li>Sorts all games by team and date</li>
+</ul>
 
-### 2.2.2 Date Cleaning
+<p>This step is critical, because rest calculations depend directly on correct game ordering.</p>
 
-Game dates appear in a mix of formats, including Unix timestamps and plain strings. Our loader function:
+<h3>2.2.3 Expected Goals Percentage (xG%)</h3>
 
-- Detects whether `gameDate` is numeric or string  
-- Converts numeric values using `pandas.to_datetime` with the correct unit  
-- Parses string dates with `errors = "coerce"` to handle irregularities  
-- Sorts all games by team and date  
+<p>
+Not all MoneyPuck exports use the same column name for expected goals percentage.
+Common options include:
+</p>
 
-This step is critical, because rest calculations depend directly on correct game ordering.
+<ul>
+  <li><code>xG%</code></li>
+  <li><code>xGoalsPercentage</code></li>
+  <li><code>xg_pct</code></li>
+  <li><code>expectedGoalsPct</code></li>
+</ul>
 
-### 2.2.3 Expected Goals Percentage (xG%)
+<p>
+Instead of hard‑coding one name, the package scans for all known options and uses whichever appears
+in the dataset. The chosen column is converted to numeric and stored internally as <code>xG</code>,
+which simplifies later analysis.
+</p>
 
-Not all MoneyPuck exports use the same column name for expected goals percentage. Common options include:
+<h3>2.2.4 Computing Rest Days</h3>
 
-- `xG%`  
-- `xGoalsPercentage`  
-- `xg_pct`  
-- `expectedGoalsPct`  
+<p>Rest days are computed as the difference in days between consecutive games for each team:</p>
 
-Instead of hard‑coding one name, the package scans for all known options and uses whichever appears in the dataset. The chosen column is converted to numeric and stored internally as `xG`, which simplifies later analysis.
+<p><code>days_rest = gameDate[i] − gameDate[i − 1]</code></p>
 
-### 2.2.4 Computing Rest Days
-
-Rest days are computed as the difference in days between consecutive games for each team:
-
-`days_rest = gameDate[i] − gameDate[i − 1]`
-
+<p>
 This is done within each team’s time series so that only games from the same team are compared.
+</p>
 
-### 2.2.5 Rest Bucket Creation
+<h3>2.2.5 Rest Bucket Creation</h3>
 
-To make rest effects easier to interpret, we categorize the numeric rest values into four buckets:
+<p>To make rest effects easier to interpret, we categorize the numeric rest values into four buckets:</p>
 
-- `"0"`: Same‑day or no rest (back‑to‑back situations)  
-- `"1"`: One day of rest  
-- `"2"`: Two days of rest  
-- `"3+"`: Three or more days of rest  
+<ul>
+  <li><code>"0"</code>: Same‑day or no rest (back‑to‑back situations)</li>
+  <li><code>"1"</code>: One day of rest</li>
+  <li><code>"2"</code>: Two days of rest</li>
+  <li><code>"3+"</code>: Three or more days of rest</li>
+</ul>
 
-These buckets are used throughout the dashboard and analysis functions.
+<p>These buckets are used throughout the dashboard and analysis functions.</p>
 
-## 2.3 Challenges Encountered
+<h2>2.3 Challenges Encountered</h2>
 
-Several challenges came up during data cleaning:
+<p>Several challenges came up during data cleaning:</p>
 
-1. **Inconsistent date formats**  
-   Some seasons used Unix timestamps, others used human‑readable strings. If dates were parsed incorrectly, all rest values collapsed to zero, making analysis meaningless.  
+<ol>
+  <li>
+    <strong>Inconsistent date formats</strong><br>
+    Some seasons used Unix timestamps, others used human‑readable strings. If dates were parsed
+    incorrectly, all rest values collapsed to zero, making analysis meaningless.
+  </li>
+  <li>
+    <strong>Team name ambiguity</strong><br>
+    Variants like LAK/LA and TBL/TB caused filtering and grouping errors until they were standardized.
+  </li>
+  <li>
+    <strong>Missing rest values</strong><br>
+    Season openers, or the first game after a long break, did not have a previous game to compare to.
+    These cases were assigned to a default rest bucket.
+  </li>
+  <li>
+    <strong>Variable xG% column names</strong><br>
+    The same metric appeared under several possible labels, requiring dynamic detection.
+  </li>
+  <li>
+    <strong>Back‑to‑back detection bugs</strong><br>
+    Early attempts misclassified many games as “0 rest” due to date parsing issues. Once the date logic
+    was fixed, the rest buckets aligned correctly with the actual schedule.
+  </li>
+</ol>
 
-2. **Team name ambiguity**  
-   Variants like LAK/LA and TBL/TB caused filtering and grouping errors until they were standardized.  
+<p>
+These issues motivated the decision to build a reusable, well‑tested Python package rather than relying
+on one‑off notebooks.
+</p>
 
-3. **Missing rest values**  
-   Season openers, or the first game after a long break, did not have a previous game to compare to. These cases were assigned to a default rest bucket.  
+<h1>3. Package Engineering (<code>nhlRestEffects</code>)</h1>
 
-4. **Variable xG% column names**  
-   The same metric appeared under several possible labels, requiring dynamic detection.  
+<h2>3.1 Architecture</h2>
 
-5. **Back‑to‑back detection bugs**  
-   Early attempts misclassified many games as “0 rest” due to date parsing issues. Once the date logic was fixed, the rest buckets aligned correctly with the actual schedule.
+<p>The package is organized as follows:</p>
 
-These issues motivated the decision to build a reusable, well‑tested Python package rather than relying on one‑off notebooks.
+<ul>
+  <li><code>data_loader.py</code>: functions for loading and cleaning the core dataset</li>
+  <li><code>analysis.py</code>: core analytical functions (rest summaries, rankings, B2B extraction)</li>
+  <li><code>utils.py</code>: helper utilities, e.g., logo URLs, goalie headshots, safe conversions</li>
+  <li><code>visualization.py</code>: plotting helpers (used conceptually, though much plotting is done inside the Streamlit app)</li>
+</ul>
 
-# 3. Package Engineering (`nhlRestEffects`)
-
-## 3.1 Architecture
-
-The package is organized as follows:
-
-- `data_loader.py`: functions for loading and cleaning the core dataset  
-- `analysis.py`: core analytical functions (rest summaries, rankings, B2B extraction)  
-- `utils.py`: helper utilities, e.g., logo URLs, goalie headshots, safe conversions  
-- `visualization.py`: plotting helpers (used conceptually, though much plotting is done inside the Streamlit app)  
-
+<p>
 This structure separates concerns between data acquisition, transformation, analysis, and presentation.
+</p>
 
-## 3.2 Key Functions
+<h2>3.2 Key Functions</h2>
 
-### 3.2.1 `load_rest_data()`
+<h3>3.2.1 <code>load_rest_data()</code></h3>
 
-This is the main entry point for team‑level rest analysis. It:
+<p>This is the main entry point for team‑level rest analysis. It:</p>
 
-- Loads the CSV file  
-- Cleans team names and dates  
-- Normalizes xG% into a consistent `xG` column  
-- Computes `days_rest` and `rest_bucket`  
+<ul>
+  <li>Loads the CSV file</li>
+  <li>Cleans team names and dates</li>
+  <li>Normalizes xG% into a consistent <code>xG</code> column</li>
+  <li>Computes <code>days_rest</code> and <code>rest_bucket</code></li>
+</ul>
 
-The returned DataFrame is ready for downstream analysis.
+<p>The returned DataFrame is ready for downstream analysis.</p>
 
-### 3.2.2 `assign_rest_bucket()`
+<h3>3.2.2 <code>assign_rest_bucket()</code></h3>
 
-This helper function converts numeric `days_rest` values into the four categorical buckets (`"0"`, `"1"`, `"2"`, `"3+"`). It ensures consistent binning throughout the package.
+<p>
+This helper function converts numeric <code>days_rest</code> values into the four
+categorical buckets (<code>"0"</code>, <code>"1"</code>, <code>"2"</code>, <code>"3+"</code>).
+It ensures consistent binning throughout the package.
+</p>
 
-### 3.2.3 `summarize_rest_buckets()`
+<h3>3.2.3 <code>summarize_rest_buckets()</code></h3>
 
-This function aggregates performance by rest bucket. Typical outputs include:
+<p>This function aggregates performance by rest bucket. Typical outputs include:</p>
 
-- Average xG%  
-- Average goals for  
-- Average goals against  
-- Win percentage  
-- Game counts per bucket  
+<ul>
+  <li>Average xG%</li>
+  <li>Average goals for</li>
+  <li>Average goals against</li>
+  <li>Win percentage</li>
+  <li>Game counts per bucket</li>
+</ul>
 
-These summaries power the rest‑impact visualizations in the Streamlit app.
+<p>These summaries power the rest‑impact visualizations in the Streamlit app.</p>
 
-### 3.2.4 `rank_rest_sensitivity()`
+<h3>3.2.4 <code>rank_rest_sensitivity()</code></h3>
 
-This function calculates a “fatigue impact” score for each team. A simple and interpretable version is:
+<p>
+This function calculates a “fatigue impact” score for each team. A simple and
+interpretable version is:
+</p>
 
-`Fatigue Impact = xG%(3+ rest) − xG%(0 rest)`
+<p><code>Fatigue Impact = xG%(3+ rest) − xG%(0 rest)</code></p>
 
-Negative values indicate teams that suffer more on back‑to‑back games, while values close to zero indicate teams that are relatively resilient to schedule compression.
+<p>
+Negative values indicate teams that suffer more on back‑to‑back games, while
+values close to zero indicate teams that are relatively resilient to schedule
+compression.
+</p>
 
-### 3.2.5 `get_back_to_back_pairs()`
+<h3>3.2.5 <code>get_back_to_back_pairs()</code></h3>
 
-This function identifies all back‑to‑back game pairs for each team, defined as consecutive games with `days_rest == 0`. It returns game pairs that can be examined more deeply, e.g., comparing Game 1 vs Game 2 performance.
+<p>
+This function identifies all back‑to‑back game pairs for each team, defined as
+consecutive games with <code>days_rest == 0</code>. It returns game pairs that
+can be examined more deeply, e.g., comparing Game 1 vs Game 2 performance.
+</p>
 
-## 3.3 Testing and Validation
+<h2>3.3 Testing and Validation</h2>
 
-We validated the package in several ways:
+<p>We validated the package in several ways:</p>
 
-- Manually checking rest values for selected teams and seasons against published NHL schedules  
-- Verifying that LAK/TBL mapping aligned all stats under the correct teams  
-- Confirming that xG% values matched MoneyPuck’s public tables for a sample of games  
-- Stress‑testing back‑to‑back detection on known B2B weeks  
+<ul>
+  <li>Manually checking rest values for selected teams and seasons against published NHL schedules</li>
+  <li>Verifying that LAK/TBL mapping aligned all stats under the correct teams</li>
+  <li>Confirming that xG% values matched MoneyPuck’s public tables for a sample of games</li>
+  <li>Stress‑testing back‑to‑back detection on known B2B weeks</li>
+</ul>
 
+<p>
 These checks gave us confidence that the core logic is correct and robust.
+</p>
 
-# 4. Dashboard Design (Streamlit)
+<h1>4. Dashboard Design (Streamlit)</h1>
 
-We built a multi‑page Streamlit application to make the analysis interactive and visually intuitive. Each page targets a different part of the story.
+<p>
+We built a multi‑page Streamlit application to make the analysis interactive and visually intuitive.
+Each page targets a different part of the story.
+</p>
 
-## 4.1 Team Analysis Page
+<h2>4.1 Team Analysis Page</h2>
 
-The Team Analysis page focuses on single‑team performance over a season. It includes:
+<p>The Team Analysis page focuses on single‑team performance over a season. It includes:</p>
 
-- Rolling xG%  
-- Rolling goals for and goals against  
-- Optional home vs away split  
-- Metric selectors (e.g., xG%, actual vs expected goals)  
-- Team logo and season filters  
+<ul>
+  <li>Rolling xG%</li>
+  <li>Rolling goals for and goals against</li>
+  <li>Optional home vs away split</li>
+  <li>Metric selectors (e.g., xG%, actual vs expected goals)</li>
+  <li>Team logo and season filters</li>
+</ul>
 
-This page allows users to visually track how a team’s performance evolves over time and how it responds to schedule patterns and opponents.
+<p>
+This page allows users to visually track how a team’s performance evolves over time and how it responds
+to schedule patterns and opponents.
+</p>
 
-## 4.2 League‑Wide Rest Analysis Page
+<h2>4.2 League‑Wide Rest Analysis Page</h2>
 
-This page shows rest effects at the league level. It typically includes:
+<p>This page shows rest effects at the league level. It typically includes:</p>
 
-- A bar chart of average xG% by rest bucket (0, 1, 2, 3+ days)  
-- League‑wide trends that summarize how rest affects performance  
-- A table showing fatigue sensitivity rankings for all teams  
+<ul>
+  <li>A bar chart of average xG% by rest bucket (0, 1, 2, 3+ days)</li>
+  <li>League‑wide trends that summarize how rest affects performance</li>
+  <li>A table showing fatigue sensitivity rankings for all teams</li>
+</ul>
 
+<p>
 Users can quickly see whether rest differences are modest or pronounced and which teams are outliers.
+</p>
 
-## 4.3 Goalie Comparison Tool
+<h2>4.3 Goalie Comparison Tool</h2>
 
-The Goalie Comparison page allows users to select two goalies and compare:
+<p>The Goalie Comparison page allows users to select two goalies and compare:</p>
 
-- Save percentage  
-- Goals saved above expected (GSAx) or a similar xG‑based metric  
-- Danger‑zone performance (e.g., high‑danger save percentage)  
-- Rebound rates  
+<ul>
+  <li>Save percentage</li>
+  <li>Goals saved above expected (GSAx) or a similar xG‑based metric</li>
+  <li>Danger‑zone performance (e.g., high‑danger save percentage)</li>
+  <li>Rebound rates</li>
+</ul>
 
-The page also pulls headshot images using player IDs and offers an option to export a PDF comparison report. This gives a polished, shareable summary of goalie performance.
+<p>
+The page also pulls headshot images using player IDs and offers an option to export a PDF comparison report.
+This gives a polished, shareable summary of goalie performance.
+</p>
 
-## 4.4 Back‑to‑Back Game Visualization
+<h2>4.4 Back‑to‑Back Game Visualization</h2>
 
-This page isolates back‑to‑back sequences and compares Game 1 vs Game 2 results. For a selected team, users can view:
+<p>This page isolates back‑to‑back sequences and compares Game 1 vs Game 2 results. For a selected team, users can view:</p>
 
-- Differences in xG%  
-- Changes in goals for and against  
-- Win percentages in the first vs second leg of back‑to‑backs  
+<ul>
+  <li>Differences in xG%</li>
+  <li>Changes in goals for and against</li>
+  <li>Win percentages in the first vs second leg of back‑to‑backs</li>
+</ul>
 
+<p>
 This visualization highlights how fatigue manifests in tightly scheduled games.
+</p>
 
-## 4.5 Rest Impact Page
+<h2>4.5 Rest Impact Page</h2>
 
-The Rest Impact page brings together many of the package’s rest‑related features. It typically includes:
+<p>The Rest Impact page brings together many of the package’s rest‑related features. It typically includes:</p>
 
-- A bar chart of average xG% per rest bucket (0, 1, 2, 3+ days) for a chosen team and season  
-- A league‑wide table showing fatigue sensitivity scores  
-- Options to filter by team and season  
+<ul>
+  <li>A bar chart of average xG% per rest bucket (0, 1, 2, 3+ days) for a chosen team and season</li>
+  <li>A league‑wide table showing fatigue sensitivity scores</li>
+  <li>Options to filter by team and season</li>
+</ul>
 
-This page is the most direct answer to the core question: “How much does rest matter, and for whom?”
+<p>
+This page is the most direct answer to the core question:
+<strong>“How much does rest matter, and for whom?”</strong>
+</p>
 
-# 5. Analysis & Insights
+<h1>5. Analysis &amp; Insights</h1>
 
-## 5.1 League‑Wide Findings
+<h2>5.1 League‑Wide Findings</h2>
 
-Across all teams and seasons in our dataset, we observe clear patterns:
+<p>Across all teams and seasons in our dataset, we observe clear patterns:</p>
 
-- Teams tend to perform **4–6 percentage points worse in xG% on 0 rest** compared to multi‑day rest.  
-- The best average xG% is typically seen in the **3+ day rest** bucket.  
-- One or two days of rest reduce the fatigue penalty but do not entirely eliminate it.
+<ul>
+  <li>Teams tend to perform <strong>4–6 percentage points worse in xG% on 0 rest</strong> compared to multi‑day rest.</li>
+  <li>The best average xG% is typically seen in the <strong>3+ day rest</strong> bucket.</li>
+  <li>One or two days of rest reduce the fatigue penalty but do not entirely eliminate it.</li>
+</ul>
 
-These trends are consistent with basic expectations about physical recovery.
+<p>These trends are consistent with basic expectations about physical recovery.</p>
 
-## 5.2 Team Case Studies
+<h2>5.2 Team Case Studies</h2>
 
-### 5.2.1 St. Louis Blues
+<h3>5.2.1 St. Louis Blues</h3>
 
-For the St. Louis Blues, we found:
+<p>For the St. Louis Blues, we found:</p>
 
-- A noticeable drop in xG% on back‑to‑back games relative to their overall season average.  
-- Performance stabilizes and often improves after two or more days of rest.  
-- The fatigue impact metric for the Blues suggests a meaningful sensitivity to schedule compression in recent seasons.
+<ul>
+  <li>A noticeable drop in xG% on back‑to‑back games relative to their overall season average.</li>
+  <li>Performance stabilizes and often improves after two or more days of rest.</li>
+  <li>The fatigue impact metric for the Blues suggests a meaningful sensitivity to schedule compression in recent seasons.</li>
+</ul>
 
-### 5.2.2 Vegas Golden Knights
+<h3>5.2.2 Vegas Golden Knights</h3>
 
-The Vegas Golden Knights show a different pattern:
+<p>The Vegas Golden Knights show a different pattern:</p>
 
-- The difference between 0‑rest and 3+‑rest performance is comparatively small.  
-- This may be due to roster depth, coaching strategies, or usage patterns that mitigate the effects of fatigue.  
+<ul>
+  <li>The difference between 0‑rest and 3+‑rest performance is comparatively small.</li>
+  <li>This may be due to roster depth, coaching strategies, or usage patterns that mitigate the effects of fatigue.</li>
+</ul>
 
+<p>
 Teams like Vegas illustrate that rest effects are not uniform and may be shaped by organizational strategies.
+</p>
 
-## 5.3 Goalie Case Study
+<h2>5.3 Goalie Case Study</h2>
 
-Aggregating goalie results, we observe that:
+<p>Aggregating goalie results, we observe that:</p>
 
-- Many goalies show lower save percentages and worse high‑danger save numbers on short rest.  
-- Some elite goalies maintain strong performance even with compressed schedules.  
-- Rebound control often improves with additional rest, which may indicate sharper tracking and positioning when players are less fatigued.
+<ul>
+  <li>Many goalies show lower save percentages and worse high‑danger save numbers on short rest.</li>
+  <li>Some elite goalies maintain strong performance even with compressed schedules.</li>
+  <li>Rebound control often improves with additional rest, which may indicate sharper tracking and positioning when players are less fatigued.</li>
+</ul>
 
-## 5.4 Limitations
+<h2>5.4 Limitations</h2>
 
-There are several limitations to our analysis:
+<p>There are several limitations to our analysis:</p>
 
-- We do not control for **opponent strength**. A tough opponent on 3+ days rest could still result in poor xG% or outcomes.  
-- We do not incorporate **travel distance**, which likely interacts with rest (e.g., long road trips vs home stands).  
-- Expected‑goals models are approximations and can mis‑estimate shot quality.  
-- Our analysis is at the **team level**; individual player fatigue patterns are not modeled.  
-- Some rest buckets, especially 3+ days, have smaller sample sizes for certain teams and seasons.
+<ul>
+  <li>We do not control for <strong>opponent strength</strong>. A tough opponent on 3+ days rest could still result in poor xG% or outcomes.</li>
+  <li>We do not incorporate <strong>travel distance</strong>, which likely interacts with rest (e.g., long road trips vs home stands).</li>
+  <li>Expected‑goals models are approximations and can mis‑estimate shot quality.</li>
+  <li>Our analysis is at the <strong>team level</strong>; individual player fatigue patterns are not modeled.</li>
+  <li>Some rest buckets, especially 3+ days, have smaller sample sizes for certain teams and seasons.</li>
+</ul>
 
-## 5.5 Future Directions
+<h2>5.5 Future Directions</h2>
 
-Potential extensions include:
+<p>Potential extensions include:</p>
 
-- Integrating **travel distance** using arena coordinates and flight paths.  
-- Building regression or generalized additive models to predict xG% from rest, travel, and opponent strength.  
-- Adding a prediction engine for future games, including simulated fatigue effects.  
-- Publishing `nhlRestEffects` to PyPI to make it easily installable.  
-- Extending the analysis to **player‑level** fatigue metrics.
+<ul>
+  <li>Integrating <strong>travel distance</strong> using arena coordinates and flight paths.</li>
+  <li>Building regression or generalized additive models to predict xG% from rest, travel, and opponent strength.</li>
+  <li>Adding a prediction engine for future games, including simulated fatigue effects.</li>
+  <li>Publishing <code>nhlRestEffects</code> to PyPI to make it easily installable.</li>
+  <li>Extending the analysis to <strong>player‑level</strong> fatigue metrics.</li>
+</ul>
 
-# 6. Conclusion
+<h1>6. Conclusion</h1>
 
-Our analysis demonstrates that rest has a meaningful and quantifiable impact on NHL performance. Using the `nhlRestEffects` package, we automated the rest‑calculation pipeline, fixed important data inconsistencies, and built an interactive Streamlit dashboard that exposes these insights in a user‑friendly way.
+<p>
+Our analysis demonstrates that rest has a meaningful and quantifiable impact on NHL performance.
+Using the <code>nhlRestEffects</code> package, we automated the rest‑calculation pipeline, fixed important
+data inconsistencies, and built an interactive Streamlit dashboard that exposes these insights in a
+user‑friendly way.
+</p>
 
-This project showcases our ability to:
+<p>This project showcases our ability to:</p>
 
-- Acquire and clean real‑world, messy datasets  
-- Engineer a reusable Python package  
-- Design and deploy an interactive analytics application  
-- Translate quantitative results into clear, interpretable insights  
+<ul>
+  <li>Acquire and clean real‑world, messy datasets</li>
+  <li>Engineer a reusable Python package</li>
+  <li>Design and deploy an interactive analytics application</li>
+  <li>Translate quantitative results into clear, interpretable insights</li>
+</ul>
 
-Overall, the work illustrates how thoughtful data engineering and modern Python tools can provide deeper understanding of sports performance and scheduling effects.
+<p>
+Overall, the work illustrates how thoughtful data engineering and modern Python tools can provide deeper
+understanding of sports performance and scheduling effects.
+</p>
 
-# 7. References
+<h1>7. References</h1>
 
-- MoneyPuck.com — NHL shot and expected‑goals data  
-- NHL.com — Official schedules and team information  
-- Streamlit documentation — Application framework reference  
-- Python Packaging Authority (PyPA) — Packaging best practices  
+<ul>
+  <li>MoneyPuck.com — NHL shot and expected‑goals data</li>
+  <li>NHL.com — Official schedules and team information</li>
+  <li>Streamlit documentation — Application framework reference</li>
+  <li>Python Packaging Authority (PyPA) — Packaging best practices</li>
+</ul>
 
-# 8. Appendix
+<h1>8. Appendix</h1>
 
-Additional materials that can be included as needed:
+<p>Additional materials that can be included as needed:</p>
 
-- Extra visualizations (e.g., more team case studies)  
-- Architecture diagrams for the package and app  
-- Example raw game logs  
-- Detailed unit test descriptions  
-- Extended statistical modeling outputs  
+<ul>
+  <li>Extra visualizations (e.g., more team case studies)</li>
+  <li>Architecture diagrams for the package and app</li>
+  <li>Example raw game logs</li>
+  <li>Detailed unit test descriptions</li>
+  <li>Extended statistical modeling outputs</li>
+</ul>
 
+</body>
+</html>
