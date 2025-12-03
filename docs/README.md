@@ -353,10 +353,10 @@ If you find an issue, please open a bug report describing:
 
 ## 📚 Roadmap
 
-	•	☐ Publish to PyPI
-	•	☐ Add CLI commands (e.g., nhlrest --team TBL)
-	•	☐ Add predictive modeling (rest effect regression)
-	•	☐ Add season-level summary generator
+- Publish to PyPI
+- Add CLI commands (e.g., nhlrest --team TBL)
+- Add predictive modeling (rest effect regression)
+- Add season-level summary generator
 
 ---
 
